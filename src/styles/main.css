@@ -756,10 +756,14 @@ textarea.form-control {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   opacity: 0;
+  pointer-events: none; /* unsichtbares Backdrop darf keine Klicks abfangen */
   transition: opacity var(--transition);
 }
 
-.modal-backdrop.visible { opacity: 1; }
+.modal-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto; /* nur wenn sichtbar Klicks empfangen */
+}
 
 .modal {
   background: var(--bg-card);

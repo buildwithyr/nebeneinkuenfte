@@ -32,6 +32,7 @@ const LOCAL_ASSETS = [
   'src/components/settings.js',
   'assets/icons/icon-192.png',
   'assets/icons/icon-512.png',
+  'assets/vendor/chart.umd.js',
 ];
 
 // Install: Jede Datei einzeln cachen – ein Fehler blockiert nicht den Rest
