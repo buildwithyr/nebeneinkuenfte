@@ -89,16 +89,37 @@ export const syncService = {
     this._assertConfigured();
     const { gistToken, gistId } = store.settings;
 
+    // DEBUG – Token-Diagnose (kein Inhalt, nur Metadaten)
+    const tokenFromLS = localStorage.getItem('nebeneinkuenfte_v1');
+    let tokenInLS = '(parse error)';
+    try { tokenInLS = JSON.parse(tokenFromLS)?.settings?.gistToken ?? '(leer)'; } catch {}
+    console.group('[Sync DEBUG] pull() Token-Diagnose');
+    console.log('store.settings.gistToken Länge:', gistToken?.length ?? 0);
+    console.log('token aus localStorage Länge:', tokenInLS?.length ?? 0);
+    console.log('Token stimmen überein:', gistToken === tokenInLS);
+    console.log('Authorization Header (maskiert):', `Bearer ${gistToken?.slice(0,6)}…${gistToken?.slice(-4)}`);
+    console.log('Gist-ID:', gistId);
+    console.groupEnd();
+
     const resp = await fetch(`${GIST_API}/${gistId}`, {
       headers: this._headers(gistToken),
     });
 
+    // DEBUG – HTTP-Response
+    console.group('[Sync DEBUG] pull() HTTP-Response');
+    console.log('HTTP Status:', resp.status, resp.statusText);
+    const bodyText = await resp.text();
+    console.log('GitHub Response (raw):', bodyText.slice(0, 500));
+    console.groupEnd();
+
     if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
+      let err = {};
+      try { err = JSON.parse(bodyText); } catch {}
       throw new Error(err.message ?? `GitHub API Fehler: ${resp.status}`);
     }
 
-    const gist = await resp.json();
+    let gist;
+    try { gist = JSON.parse(bodyText); } catch { throw new Error('Ungültige JSON-Antwort von GitHub'); }
     const file = gist.files?.[FILENAME];
     if (!file) throw new Error(`Datei "${FILENAME}" nicht im Gist gefunden.`);
 
