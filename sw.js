@@ -1,13 +1,20 @@
 /**
- * Service Worker – Cache-First für App-Shell, Network-First für Sync
- * Version im Cache-Namen erhöhen, um alten Cache zu invalidieren
+ * Service Worker – Cache-First für App-Shell
+ *
+ * WICHTIG: CDN-Assets (Chart.js) werden NICHT im Install-Schritt gecacht.
+ * caches.addAll() schlägt atomar fehl wenn eine URL nicht erreichbar ist →
+ * das würde den SW-Install in einer Endlosschleife wiederholen und die App einfrieren.
+ *
+ * Stattdessen: Lokale Assets werden im Install gecacht, externe Assets werden
+ * beim ersten Fetch dynamisch gecacht (cache-first mit Network-Fallback).
  */
 
-const CACHE_VERSION = 'v1.0.0';
-const STATIC_CACHE = `nebeneinkuenfte-static-${CACHE_VERSION}`;
+const CACHE_VERSION = 'v1.0.1';
+const STATIC_CACHE  = `nebeneinkuenfte-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `nebeneinkuenfte-dynamic-${CACHE_VERSION}`;
 
-const STATIC_ASSETS = [
+// Nur lokale Dateien – kein CDN, keine externe URL
+const LOCAL_ASSETS = [
   './',
   'index.html',
   'manifest.json',
@@ -25,18 +32,24 @@ const STATIC_ASSETS = [
   'src/components/settings.js',
   'assets/icons/icon-192.png',
   'assets/icons/icon-512.png',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js',
 ];
 
-// Install: Pre-cache alle statischen Assets
+// Install: Jede Datei einzeln cachen – ein Fehler blockiert nicht den Rest
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(STATIC_ASSETS))
+    caches.open(STATIC_CACHE).then((cache) =>
+      Promise.allSettled(
+        LOCAL_ASSETS.map((url) =>
+          cache.add(url).catch((err) =>
+            console.warn(`[SW] Cache miss für ${url}:`, err)
+          )
+        )
+      )
+    ).then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// Activate: Alte Caches bereinigen
+// Activate: Veraltete Caches löschen
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -45,22 +58,23 @@ self.addEventListener('activate', (event) => {
           .filter((k) => k !== STATIC_CACHE && k !== DYNAMIC_CACHE)
           .map((k) => caches.delete(k))
       )
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch: Cache-First für statische Assets, Network-First für API-Calls
+// Fetch: GitHub API immer über Netzwerk; alles andere Cache-First
 self.addEventListener('fetch', (event) => {
+  // Nicht-GET Requests nicht abfangen
+  if (event.request.method !== 'GET') return;
+
   const url = new URL(event.request.url);
 
-  // GitHub Gist API: Network-First (Sync braucht aktuelle Daten)
+  // GitHub API: Kein Caching – Sync muss aktuelle Daten sehen
   if (url.hostname === 'api.github.com') {
-    event.respondWith(networkFirst(event.request));
+    event.respondWith(fetch(event.request));
     return;
   }
 
-  // Alles andere: Cache-First
   event.respondWith(cacheFirst(event.request));
 });
 
@@ -70,24 +84,16 @@ async function cacheFirst(request) {
 
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    // Nur erfolgreiche Responses cachen (verhindert gecachte Fehlermeldungen)
+    if (response.ok && response.status === 200) {
       const cache = await caches.open(DYNAMIC_CACHE);
       cache.put(request, response.clone());
     }
     return response;
   } catch {
-    return new Response('Offline – keine zwischengespeicherte Version verfügbar.', {
-      status: 503,
-    });
-  }
-}
-
-async function networkFirst(request) {
-  try {
-    const response = await fetch(request);
-    return response;
-  } catch {
-    const cached = await caches.match(request);
-    return cached || new Response('Netzwerk nicht erreichbar.', { status: 503 });
+    return new Response(
+      'Offline – diese Ressource ist noch nicht im Cache.',
+      { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
+    );
   }
 }
