@@ -1,0 +1,334 @@
+/**
+ * Aufträge – Liste, Filter, Formular (Add/Edit)
+ */
+
+import { store } from '../services/store.js';
+import { formatDate, formatCurrency, availableYears, filterByYear } from '../services/calculations.js';
+import { showToast } from '../app.js';
+
+let filterYear = new Date().getFullYear();
+let filterClient = 'all';
+let filterPaid = 'all';
+let editingId = null;
+
+export function renderAssignments(container) {
+  _render(container);
+  const u1 = store.on('assignments', () => _render(container));
+  const u2 = store.on('clients',     () => _render(container));
+  container._assignmentsUnsub = () => { u1(); u2(); };
+}
+
+export function destroyAssignments(container) {
+  container._assignmentsUnsub?.();
+}
+
+function _render(container) {
+  const { assignments, clients, settings } = store;
+  const sym = settings.currencySymbol ?? '€';
+  const years = availableYears(assignments);
+
+  let filtered = [...assignments];
+  if (filterYear !== 'all') filtered = filtered.filter(a => new Date(a.date).getFullYear() === Number(filterYear));
+  if (filterClient !== 'all') filtered = filtered.filter(a => a.clientId === filterClient);
+  if (filterPaid === 'paid')   filtered = filtered.filter(a => a.paid);
+  if (filterPaid === 'unpaid') filtered = filtered.filter(a => !a.paid);
+  filtered.sort((a, b) => b.date.localeCompare(a.date));
+
+  const clientMap = Object.fromEntries(clients.map(c => [c.id, c.name]));
+  const totalFee  = filtered.reduce((s, a) => s + (a.fee ?? 0), 0);
+
+  container.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <div class="page-title">Aufträge</div>
+        <div class="page-subtitle">${filtered.length} Einträge · ${sym} ${totalFee.toLocaleString('de-AT', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+      </div>
+      <button class="btn btn-primary btn-sm" id="asgn-add-btn">+ Neu</button>
+    </div>
+
+    <!-- Filter: Jahr -->
+    <div class="filter-bar" data-filter="year">
+      <button class="filter-chip ${filterYear === 'all' ? 'active' : ''}" data-year="all">Alle</button>
+      ${years.map(y => `<button class="filter-chip ${filterYear == y ? 'active' : ''}" data-year="${y}">${y}</button>`).join('')}
+    </div>
+
+    <!-- Filter: Auftraggeber -->
+    <div class="filter-bar" data-filter="client">
+      <button class="filter-chip ${filterClient === 'all' ? 'active' : ''}" data-client="all">Alle AG</button>
+      ${clients.filter(c => c.active).map(c =>
+        `<button class="filter-chip ${filterClient === c.id ? 'active' : ''}" data-client="${c.id}">${_esc(c.name)}</button>`
+      ).join('')}
+    </div>
+
+    <!-- Filter: Zahlungsstatus -->
+    <div class="filter-bar mb-2" data-filter="paid">
+      <button class="filter-chip ${filterPaid === 'all' ? 'active' : ''}" data-paid="all">Alle</button>
+      <button class="filter-chip ${filterPaid === 'paid' ? 'active' : ''}" data-paid="paid">✓ Bezahlt</button>
+      <button class="filter-chip ${filterPaid === 'unpaid' ? 'active' : ''}" data-paid="unpaid">⏳ Ausstehend</button>
+    </div>
+
+    <!-- Liste -->
+    <div class="list" id="asgn-list">
+      ${filtered.length === 0
+        ? `<div class="empty-state">
+            <div class="empty-icon">📋</div>
+            <div class="empty-title">Keine Aufträge</div>
+            <div class="empty-text">Passe die Filter an oder lege einen neuen Auftrag an.</div>
+           </div>`
+        : filtered.map(a => _renderItem(a, clientMap, sym)).join('')
+      }
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-backdrop" id="asgn-modal-backdrop">
+      <div class="modal" id="asgn-modal">
+        <div class="modal-handle"></div>
+        <div class="modal-title" id="asgn-modal-title">Neuer Auftrag</div>
+        <form id="asgn-form">
+          ${_renderForm(clients)}
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="asgn-cancel">Abbrechen</button>
+            <button type="submit" class="btn btn-primary" id="asgn-submit">Speichern</button>
+          </div>
+          <div id="asgn-delete-zone" class="hidden mt-3">
+            <button type="button" class="btn btn-danger btn-full" id="asgn-delete">Auftrag löschen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+
+  _attachListeners(container, clients, sym);
+}
+
+function _renderItem(a, clientMap, sym) {
+  const kmBadge  = a.kmBillable && a.km > 0
+    ? `<span class="badge badge-accent">🚗 ${a.km} km</span>` : '';
+  const paidBadge = a.paid
+    ? `<span class="badge badge-success">✓ Bezahlt</span>`
+    : `<span class="badge badge-warning">Ausstehend</span>`;
+
+  return `
+    <div class="list-item" data-asgn-id="${a.id}">
+      <div class="list-item-main">
+        <div class="list-item-title">${_esc(a.description || clientMap[a.clientId] || '–')}</div>
+        <div class="list-item-meta">
+          <span>${_esc(clientMap[a.clientId] ?? '–')}</span>
+          <span>·</span>
+          <span>${formatDate(a.date)}</span>
+        </div>
+        <div class="flex gap-2 mt-1">
+          ${paidBadge}
+          ${kmBadge}
+          ${a.note ? '<span class="badge badge-muted">📝</span>' : ''}
+        </div>
+      </div>
+      <div class="list-item-value ${a.paid ? 'success' : ''}">${sym} ${(a.fee ?? 0).toFixed(2)}</div>
+    </div>
+  `;
+}
+
+function _renderForm(clients) {
+  const today = new Date().toISOString().slice(0, 10);
+  const activeClients = clients.filter(c => c.active);
+
+  return `
+    <div class="form-group">
+      <label class="form-label">Datum <span class="required">*</span></label>
+      <input type="date" class="form-control" name="date" value="${today}" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Auftraggeber <span class="required">*</span></label>
+      <select class="form-control" name="clientId" required>
+        <option value="">– Bitte wählen –</option>
+        ${activeClients.map(c => `<option value="${c.id}">${_esc(c.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Beschreibung</label>
+      <input type="text" class="form-control" name="description" placeholder="z.B. IQOS Flagship Store Wien">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Honorar (€) <span class="required">*</span></label>
+      <input type="number" class="form-control" name="fee" step="0.01" min="0" placeholder="0.00" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Kilometer</label>
+      <input type="number" class="form-control" name="km" step="1" min="0" placeholder="0">
+    </div>
+    <div class="form-group">
+      <div class="switch-row">
+        <label class="switch-label">Kilometer verrechenbar</label>
+        <label class="switch">
+          <input type="checkbox" name="kmBillable">
+          <span class="switch-track"></span>
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="switch-row">
+        <label class="switch-label">Bereits bezahlt</label>
+        <label class="switch">
+          <input type="checkbox" name="paid">
+          <span class="switch-track"></span>
+        </label>
+      </div>
+    </div>
+    <div class="form-group" id="paid-date-group" style="display:none">
+      <label class="form-label">Zahlungsdatum</label>
+      <input type="date" class="form-control" name="paidDate">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notiz</label>
+      <textarea class="form-control" name="note" rows="2" placeholder="Interne Notiz…"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Typ</label>
+      <select class="form-control" name="type">
+        <option value="mystery_shopping">Mystery Shopping / Testkauf</option>
+        <option value="online_discussion">Online-Diskussion / Panel</option>
+        <option value="other">Sonstige Nebentätigkeit</option>
+      </select>
+    </div>
+  `;
+}
+
+function _attachListeners(container, clients, sym) {
+  const backdrop = container.querySelector('#asgn-modal-backdrop');
+  const modal    = container.querySelector('#asgn-modal');
+  const form     = container.querySelector('#asgn-form');
+  const title    = container.querySelector('#asgn-modal-title');
+  const paidChk  = form.querySelector('[name="paid"]');
+  const paidDG   = form.querySelector('#paid-date-group');
+  const deleteZone = container.querySelector('#asgn-delete-zone');
+
+  function openModal(assignmentId) {
+    editingId = assignmentId ?? null;
+    title.textContent = editingId ? 'Auftrag bearbeiten' : 'Neuer Auftrag';
+    deleteZone?.classList.toggle('hidden', !editingId);
+
+    if (editingId) {
+      const a = store.getAssignment(editingId);
+      if (a) _fillForm(form, a);
+    } else {
+      form.reset();
+      form.querySelector('[name="date"]').value = new Date().toISOString().slice(0, 10);
+      paidDG.style.display = 'none';
+    }
+
+    backdrop.classList.add('visible');
+    setTimeout(() => modal.classList.add('visible'), 10);
+  }
+
+  function closeModal() {
+    modal.classList.remove('visible');
+    setTimeout(() => backdrop.classList.remove('visible'), 300);
+    editingId = null;
+  }
+
+  // Paid toggle → Zahlungsdatum zeigen/verstecken
+  paidChk.addEventListener('change', () => {
+    paidDG.style.display = paidChk.checked ? '' : 'none';
+    if (paidChk.checked && !form.querySelector('[name="paidDate"]').value) {
+      form.querySelector('[name="paidDate"]').value = new Date().toISOString().slice(0, 10);
+    }
+  });
+
+  // Öffne Modal bei Klick auf Listenelement
+  container.querySelector('#asgn-list')?.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-asgn-id]');
+    if (item) openModal(item.dataset.asgnId);
+  });
+
+  // Neu-Button
+  container.querySelector('#asgn-add-btn').addEventListener('click', () => openModal(null));
+
+  // Abbrechen / Backdrop
+  container.querySelector('#asgn-cancel').addEventListener('click', closeModal);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeModal(); });
+
+  // Löschen
+  container.querySelector('#asgn-delete')?.addEventListener('click', () => {
+    if (!editingId) return;
+    if (!confirm('Diesen Auftrag wirklich löschen?')) return;
+    store.deleteAssignment(editingId);
+    showToast('Auftrag gelöscht', 'info');
+    closeModal();
+  });
+
+  // Formular-Submit
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const data = _getFormData(form);
+    if (!data.clientId) { showToast('Bitte Auftraggeber auswählen', 'error'); return; }
+    if (!data.date)     { showToast('Bitte Datum eingeben', 'error'); return; }
+
+    if (editingId) {
+      store.updateAssignment(editingId, data);
+      showToast('Auftrag aktualisiert', 'success');
+    } else {
+      store.addAssignment(data);
+      showToast('Auftrag gespeichert', 'success');
+    }
+    closeModal();
+  });
+
+  // Filter-Events – über data-filter Attribut eindeutig selektieren
+  container.querySelector('[data-filter="year"]')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-year]');
+    if (!btn) return;
+    filterYear = btn.dataset.year === 'all' ? 'all' : Number(btn.dataset.year);
+    _render(container);
+  });
+
+  container.querySelector('[data-filter="client"]')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-client]');
+    if (!btn) return;
+    filterClient = btn.dataset.client;
+    _render(container);
+  });
+
+  container.querySelector('[data-filter="paid"]')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-paid]');
+    if (!btn) return;
+    filterPaid = btn.dataset.paid;
+    _render(container);
+  });
+
+  // FAB (falls von außen aufgerufen)
+  window._openNewAssignment = () => openModal(null);
+}
+
+function _fillForm(form, a) {
+  form.querySelector('[name="date"]').value       = a.date ?? '';
+  form.querySelector('[name="clientId"]').value   = a.clientId ?? '';
+  form.querySelector('[name="description"]').value= a.description ?? '';
+  form.querySelector('[name="fee"]').value        = a.fee ?? '';
+  form.querySelector('[name="km"]').value         = a.km ?? '';
+  form.querySelector('[name="kmBillable"]').checked = !!a.kmBillable;
+  form.querySelector('[name="paid"]').checked     = !!a.paid;
+  form.querySelector('[name="paidDate"]').value   = a.paidDate ?? '';
+  form.querySelector('[name="note"]').value       = a.note ?? '';
+  form.querySelector('[name="type"]').value       = a.type ?? 'mystery_shopping';
+  form.querySelector('#paid-date-group').style.display = a.paid ? '' : 'none';
+}
+
+function _getFormData(form) {
+  const fd = new FormData(form);
+  return {
+    date:        fd.get('date') || null,
+    clientId:    fd.get('clientId') || null,
+    description: fd.get('description') || '',
+    fee:         parseFloat(fd.get('fee')) || 0,
+    km:          parseInt(fd.get('km'), 10) || 0,
+    kmBillable:  form.querySelector('[name="kmBillable"]').checked,
+    paid:        form.querySelector('[name="paid"]').checked,
+    paidDate:    form.querySelector('[name="paid"]').checked ? (fd.get('paidDate') || null) : null,
+    note:        fd.get('note') || '',
+    type:        fd.get('type') || 'mystery_shopping',
+  };
+}
+
+function _esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
