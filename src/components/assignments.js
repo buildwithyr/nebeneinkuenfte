@@ -8,7 +8,7 @@ import { showToast } from '../app.js';
 
 let filterYear = new Date().getFullYear();
 let filterClient = 'all';
-let filterPaid = 'all';
+let filterStatus = 'all';
 let editingId = null;
 
 export function renderAssignments(container) {
@@ -30,8 +30,7 @@ function _render(container) {
   let filtered = [...assignments];
   if (filterYear !== 'all') filtered = filtered.filter(a => new Date(a.date).getFullYear() === Number(filterYear));
   if (filterClient !== 'all') filtered = filtered.filter(a => a.clientId === filterClient);
-  if (filterPaid === 'paid')   filtered = filtered.filter(a => a.paid);
-  if (filterPaid === 'unpaid') filtered = filtered.filter(a => !a.paid);
+  if (filterStatus !== 'all') filtered = filtered.filter(a => a.status === filterStatus);
   filtered.sort((a, b) => b.date.localeCompare(a.date));
 
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c.name]));
@@ -60,11 +59,12 @@ function _render(container) {
       ).join('')}
     </div>
 
-    <!-- Filter: Zahlungsstatus -->
-    <div class="filter-bar mb-2" data-filter="paid">
-      <button class="filter-chip ${filterPaid === 'all' ? 'active' : ''}" data-paid="all">Alle</button>
-      <button class="filter-chip ${filterPaid === 'paid' ? 'active' : ''}" data-paid="paid">✓ Bezahlt</button>
-      <button class="filter-chip ${filterPaid === 'unpaid' ? 'active' : ''}" data-paid="unpaid">⏳ Ausstehend</button>
+    <!-- Filter: Status -->
+    <div class="filter-bar mb-2" data-filter="status">
+      <button class="filter-chip ${filterStatus === 'all'       ? 'active' : ''}" data-status="all">Alle</button>
+      <button class="filter-chip ${filterStatus === 'open'      ? 'active' : ''}" data-status="open">📋 Offen</button>
+      <button class="filter-chip ${filterStatus === 'completed' ? 'active' : ''}" data-status="completed">✓ Abgeschlossen</button>
+      <button class="filter-chip ${filterStatus === 'paid'      ? 'active' : ''}" data-status="paid">💰 Bezahlt</button>
     </div>
 
     <!-- Liste -->
@@ -101,12 +101,15 @@ function _render(container) {
   _attachListeners(container, clients, sym);
 }
 
+function _statusBadge(status) {
+  if (status === 'paid')      return '<span class="badge badge-success">💰 Bezahlt</span>';
+  if (status === 'completed') return '<span class="badge badge-info">✓ Abgeschlossen</span>';
+  return '<span class="badge badge-warning">📋 Offen</span>';
+}
+
 function _renderItem(a, clientMap, sym) {
-  const kmBadge  = a.kmBillable && a.km > 0
+  const kmBadge = a.kmBillable && a.km > 0
     ? `<span class="badge badge-accent">🚗 ${a.km} km</span>` : '';
-  const paidBadge = a.paid
-    ? `<span class="badge badge-success">✓ Bezahlt</span>`
-    : `<span class="badge badge-warning">Ausstehend</span>`;
 
   return `
     <div class="list-item" data-asgn-id="${a.id}">
@@ -118,12 +121,12 @@ function _renderItem(a, clientMap, sym) {
           <span>${formatDate(a.date)}</span>
         </div>
         <div class="flex gap-2 mt-1">
-          ${paidBadge}
+          ${_statusBadge(a.status)}
           ${kmBadge}
           ${a.note ? '<span class="badge badge-muted">📝</span>' : ''}
         </div>
       </div>
-      <div class="list-item-value ${a.paid ? 'success' : ''}">${sym} ${(a.fee ?? 0).toFixed(2)}</div>
+      <div class="list-item-value ${a.status === 'paid' ? 'success' : ''}">${sym} ${(a.fee ?? 0).toFixed(2)}</div>
     </div>
   `;
 }
@@ -166,13 +169,12 @@ function _renderForm(clients) {
       </div>
     </div>
     <div class="form-group">
-      <div class="switch-row">
-        <label class="switch-label">Bereits bezahlt</label>
-        <label class="switch">
-          <input type="checkbox" name="paid">
-          <span class="switch-track"></span>
-        </label>
-      </div>
+      <label class="form-label">Status</label>
+      <select class="form-control" name="status">
+        <option value="open">📋 Offen – noch nicht durchgeführt</option>
+        <option value="completed">✓ Abgeschlossen – warte auf Auszahlung</option>
+        <option value="paid">💰 Bezahlt – Auszahlung erhalten</option>
+      </select>
     </div>
     <div class="form-group" id="paid-date-group" style="display:none">
       <label class="form-label">Zahlungsdatum</label>
@@ -194,13 +196,13 @@ function _renderForm(clients) {
 }
 
 function _attachListeners(container, clients, sym) {
-  const backdrop = container.querySelector('#asgn-modal-backdrop');
-  const modal    = container.querySelector('#asgn-modal');
-  const form     = container.querySelector('#asgn-form');
-  const title    = container.querySelector('#asgn-modal-title');
-  const paidChk  = form.querySelector('[name="paid"]');
-  const paidDG   = form.querySelector('#paid-date-group');
-  const deleteZone = container.querySelector('#asgn-delete-zone');
+  const backdrop    = container.querySelector('#asgn-modal-backdrop');
+  const modal       = container.querySelector('#asgn-modal');
+  const form        = container.querySelector('#asgn-form');
+  const title       = container.querySelector('#asgn-modal-title');
+  const statusSel   = form.querySelector('[name="status"]');
+  const paidDG      = form.querySelector('#paid-date-group');
+  const deleteZone  = container.querySelector('#asgn-delete-zone');
 
   function openModal(assignmentId) {
     editingId = assignmentId ?? null;
@@ -213,6 +215,7 @@ function _attachListeners(container, clients, sym) {
     } else {
       form.reset();
       form.querySelector('[name="date"]').value = new Date().toISOString().slice(0, 10);
+      statusSel.value = 'open';
       paidDG.style.display = 'none';
     }
 
@@ -226,10 +229,11 @@ function _attachListeners(container, clients, sym) {
     editingId = null;
   }
 
-  // Paid toggle → Zahlungsdatum zeigen/verstecken
-  paidChk.addEventListener('change', () => {
-    paidDG.style.display = paidChk.checked ? '' : 'none';
-    if (paidChk.checked && !form.querySelector('[name="paidDate"]').value) {
+  // Status-Auswahl → Zahlungsdatum zeigen/verstecken
+  statusSel.addEventListener('change', () => {
+    const isPaid = statusSel.value === 'paid';
+    paidDG.style.display = isPaid ? '' : 'none';
+    if (isPaid && !form.querySelector('[name="paidDate"]').value) {
       form.querySelector('[name="paidDate"]').value = new Date().toISOString().slice(0, 10);
     }
   });
@@ -288,10 +292,10 @@ function _attachListeners(container, clients, sym) {
     _render(container);
   });
 
-  container.querySelector('[data-filter="paid"]')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-paid]');
+  container.querySelector('[data-filter="status"]')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-status]');
     if (!btn) return;
-    filterPaid = btn.dataset.paid;
+    filterStatus = btn.dataset.status;
     _render(container);
   });
 
@@ -306,11 +310,11 @@ function _fillForm(form, a) {
   form.querySelector('[name="fee"]').value        = a.fee ?? '';
   form.querySelector('[name="km"]').value         = a.km ?? '';
   form.querySelector('[name="kmBillable"]').checked = !!a.kmBillable;
-  form.querySelector('[name="paid"]').checked     = !!a.paid;
+  form.querySelector('[name="status"]').value     = a.status ?? 'open';
   form.querySelector('[name="paidDate"]').value   = a.paidDate ?? '';
   form.querySelector('[name="note"]').value       = a.note ?? '';
   form.querySelector('[name="type"]').value       = a.type ?? 'mystery_shopping';
-  form.querySelector('#paid-date-group').style.display = a.paid ? '' : 'none';
+  form.querySelector('#paid-date-group').style.display = a.status === 'paid' ? '' : 'none';
 }
 
 function _getFormData(form) {
@@ -322,8 +326,8 @@ function _getFormData(form) {
     fee:         parseFloat(fd.get('fee')) || 0,
     km:          parseInt(fd.get('km'), 10) || 0,
     kmBillable:  form.querySelector('[name="kmBillable"]').checked,
-    paid:        form.querySelector('[name="paid"]').checked,
-    paidDate:    form.querySelector('[name="paid"]').checked ? (fd.get('paidDate') || null) : null,
+    status:      fd.get('status') || 'open',
+    paidDate:    fd.get('status') === 'paid' ? (fd.get('paidDate') || null) : null,
     note:        fd.get('note') || '',
     type:        fd.get('type') || 'mystery_shopping',
   };

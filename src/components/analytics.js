@@ -235,7 +235,7 @@ function _renderClients(assignments, clients, settings, year, sym) {
 function _renderUnpaid(assignments, clients, settings, sym) {
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c.name]));
   const unpaid = [...assignments]
-    .filter(a => !a.paid)
+    .filter(a => a.status !== 'paid')
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const totalUnpaid = unpaid.reduce((s, a) => s + (a.fee ?? 0), 0);
@@ -342,7 +342,7 @@ export function registerMarkPaidListener() {
     const btn = e.target.closest('[data-mark-paid]');
     if (!btn) return;
     const id = btn.dataset.markPaid;
-    store.updateAssignment(id, { paid: true, paidDate: new Date().toISOString().slice(0, 10) });
+    store.updateAssignment(id, { status: 'paid', paidDate: new Date().toISOString().slice(0, 10) });
   };
   document.addEventListener('click', _markPaidHandler);
 }

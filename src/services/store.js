@@ -45,7 +45,7 @@ class Store {
         meta: { lastModified: new Date().toISOString(), deviceId: this._getDeviceId() },
         settings: { ...DEFAULT_SETTINGS, ...saved.settings },
         clients: saved.clients ?? DEFAULT_CLIENTS,
-        assignments: saved.assignments ?? [],
+        assignments: (saved.assignments ?? []).map(_migrateAssignment),
       };
     } else {
       this._data = {
@@ -123,7 +123,7 @@ class Store {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       type: 'mystery_shopping',
-      paid: false,
+      status: 'open',
       paidDate: null,
       km: 0,
       kmBillable: false,
@@ -162,7 +162,7 @@ class Store {
       meta: { ...raw.meta, deviceId: this._getDeviceId() },
       settings: { ...DEFAULT_SETTINGS, ...raw.settings },
       clients: raw.clients ?? [],
-      assignments: raw.assignments ?? [],
+      assignments: (raw.assignments ?? []).map(_migrateAssignment),
     };
     this._applyTheme();
     this._save();
@@ -210,3 +210,11 @@ class Store {
 }
 
 export const store = new Store();
+
+/** Migration: paid:boolean → status:'open'|'completed'|'paid' */
+function _migrateAssignment(a) {
+  if (a.status) return a; // already migrated
+  const status = a.paid ? 'paid' : 'open';
+  const { paid, ...rest } = a; // remove legacy field
+  return { ...rest, status };
+}

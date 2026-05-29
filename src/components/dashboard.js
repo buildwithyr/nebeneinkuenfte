@@ -70,7 +70,7 @@ function _render(container) {
         <div class="metric-icon ${stats.unpaidFee > 0 ? 'warning-bg' : 'accent-bg'}">⏳</div>
         <div class="metric-label">Offene Zahlungen</div>
         <div class="metric-value ${stats.unpaidFee > 0 ? 'warning' : ''}">${_fmt(stats.unpaidFee, sym)}</div>
-        <div class="metric-sub">${assignments.filter(a => !a.paid && new Date(a.date).getFullYear() === selectedYear).length} offen</div>
+        <div class="metric-sub">${assignments.filter(a => a.status !== 'paid' && new Date(a.date).getFullYear() === selectedYear).length} offen</div>
       </div>
 
       <div class="metric-card">
@@ -237,11 +237,13 @@ function _recentAssignments(assignments, clients, sym) {
         </div>
       </div>
       <div>
-        <div class="list-item-value ${a.paid ? '' : 'warning'}">${_fmt(a.fee, sym)}</div>
+        <div class="list-item-value ${a.status === 'paid' ? '' : 'warning'}">${_fmt(a.fee, sym)}</div>
         <div class="text-right mt-1">
-          ${a.paid
-            ? '<span class="badge badge-success">✓ Bezahlt</span>'
-            : '<span class="badge badge-warning">Ausstehend</span>'}
+          ${a.status === 'paid'
+            ? '<span class="badge badge-success">💰 Bezahlt</span>'
+            : a.status === 'completed'
+              ? '<span class="badge badge-info">✓ Abgeschlossen</span>'
+              : '<span class="badge badge-warning">📋 Offen</span>'}
         </div>
       </div>
     </div>

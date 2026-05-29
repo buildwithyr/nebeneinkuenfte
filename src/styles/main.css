@@ -698,6 +698,7 @@ textarea.form-control {
 .badge-accent   { background: var(--accent-light); color: var(--accent); }
 .badge-success  { background: var(--success-bg); color: var(--success); }
 .badge-warning  { background: var(--warning-bg); color: var(--warning); }
+.badge-info     { background: rgba(0,180,216,0.15); color: var(--accent); }
 .badge-danger   { background: var(--danger-bg); color: var(--danger); }
 .badge-muted    { background: rgba(143,167,191,0.1); color: var(--text-muted); }
 
