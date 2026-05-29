@@ -349,9 +349,11 @@ function _attachListeners(container) {
     const token  = container.querySelector('#s-gist-token')?.value?.trim() ?? '';
     const gistId = container.querySelector('#s-gist-id')?.value?.trim() ?? '';
     store.updateSettings({ gistToken: token, gistId });
-    // Sync-Button aktivieren/deaktivieren
-    const syncBtn = container.querySelector('#s-sync-now');
-    if (syncBtn) syncBtn.disabled = !(token && gistId);
+    // Sync- und Create-Button aktivieren/deaktivieren
+    const syncBtn   = container.querySelector('#s-sync-now');
+    const createBtn = container.querySelector('#s-create-gist');
+    if (syncBtn)   syncBtn.disabled   = !(token && gistId);
+    if (createBtn) createBtn.disabled = !token;
     showToast('Sync-Einstellungen gespeichert', 'success');
   });
 
