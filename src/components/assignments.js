@@ -102,14 +102,21 @@ function _render(container) {
 }
 
 function _statusBadge(status) {
-  if (status === 'paid')      return '<span class="badge badge-success">💰 Bezahlt</span>';
-  if (status === 'completed') return '<span class="badge badge-info">✓ Abgeschlossen</span>';
-  return '<span class="badge badge-warning">📋 Offen</span>';
+  if (status === 'paid')      return '<span class="badge status-paid">🟢 Bezahlt</span>';
+  if (status === 'completed') return '<span class="badge status-completed">🔵 Erledigt</span>';
+  return '<span class="badge status-open">🟡 Offen</span>';
 }
 
 function _renderItem(a, clientMap, sym) {
   const kmBadge = a.kmBillable && a.km > 0
     ? `<span class="badge badge-accent">🚗 ${a.km} km</span>` : '';
+
+  let actionBtn = '';
+  if (a.status === 'open') {
+    actionBtn = `<button class="btn btn-sm btn-secondary mt-2" data-action-status="completed" data-action-id="${a.id}">✓ Als erledigt markieren</button>`;
+  } else if (a.status === 'completed') {
+    actionBtn = `<button class="btn btn-sm btn-success mt-2" data-action-status="paid" data-action-id="${a.id}">💰 Als bezahlt markieren</button>`;
+  }
 
   return `
     <div class="list-item" data-asgn-id="${a.id}">
@@ -125,6 +132,7 @@ function _renderItem(a, clientMap, sym) {
           ${kmBadge}
           ${a.note ? '<span class="badge badge-muted">📝</span>' : ''}
         </div>
+        ${actionBtn}
       </div>
       <div class="list-item-value ${a.status === 'paid' ? 'success' : ''}">${sym} ${(a.fee ?? 0).toFixed(2)}</div>
     </div>
@@ -238,8 +246,17 @@ function _attachListeners(container, clients, sym) {
     }
   });
 
-  // Öffne Modal bei Klick auf Listenelement
+  // Schnellaktionen (vor Modal-Öffnung prüfen)
   container.querySelector('#asgn-list')?.addEventListener('click', (e) => {
+    const actionBtn = e.target.closest('[data-action-status]');
+    if (actionBtn) {
+      const id        = actionBtn.dataset.actionId;
+      const newStatus = actionBtn.dataset.actionStatus;
+      store.updateAssignmentStatus(id, newStatus);
+      if (newStatus === 'completed') showToast('Auftrag als erledigt markiert', 'success');
+      else if (newStatus === 'paid') showToast('Zahlung erfasst', 'success');
+      return;
+    }
     const item = e.target.closest('[data-asgn-id]');
     if (item) openModal(item.dataset.asgnId);
   });

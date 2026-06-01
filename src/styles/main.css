@@ -702,6 +702,11 @@ textarea.form-control {
 .badge-danger   { background: var(--danger-bg); color: var(--danger); }
 .badge-muted    { background: rgba(143,167,191,0.1); color: var(--text-muted); }
 
+/* Workflow-Status Badges */
+.status-open      { background: var(--warning-bg);  color: var(--warning); }
+.status-completed { background: rgba(17,138,178,0.15); color: var(--info); }
+.status-paid      { background: var(--success-bg);  color: var(--success); }
+
 /* =========================================================
    Charts
    ========================================================= */

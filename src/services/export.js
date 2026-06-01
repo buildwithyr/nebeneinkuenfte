@@ -75,7 +75,7 @@ export const exportService = {
           (a.km ?? 0).toString(),
           a.kmBillable ? 'Ja' : 'Nein',
           kmMoney.toFixed(2),
-          a.paid ? 'Ja' : 'Nein',
+          a.status === 'paid' ? 'Ja' : 'Nein',
           formatDate(a.paidDate),
           a.type ?? 'mystery_shopping',
           (a.note ?? '').replace(/"/g, '""'),
