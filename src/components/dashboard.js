@@ -5,7 +5,7 @@
 
 import { store } from '../services/store.js';
 import {
-  yearStats, monthlyStats, clientStats, availableYears,
+  yearStats, monthlyStats, clientStats, availableYears, filterByYear,
   formatCurrency, formatKm, formatPercent, formatDate,
 } from '../services/calculations.js';
 
@@ -36,6 +36,10 @@ function _render(container) {
   const monthly = monthlyStats(assignments, selectedYear);
   const clientS = clientStats(assignments, clients, selectedYear, settings);
   const sym = settings.currencySymbol ?? '€';
+  const yearAssignments = filterByYear(assignments, selectedYear);
+  const openCount       = yearAssignments.filter(a => a.status === 'open').length;
+  const completedCount  = yearAssignments.filter(a => a.status === 'completed').length;
+  const openFee         = yearAssignments.filter(a => a.status === 'open').reduce((s, a) => s + (a.fee ?? 0), 0);
 
   container.innerHTML = `
     <div class="page-title">Dashboard</div>
@@ -70,7 +74,21 @@ function _render(container) {
         <div class="metric-icon ${stats.unpaidFee > 0 ? 'warning-bg' : 'accent-bg'}">⏳</div>
         <div class="metric-label">Offene Zahlungen</div>
         <div class="metric-value ${stats.unpaidFee > 0 ? 'warning' : ''}">${_fmt(stats.unpaidFee, sym)}</div>
-        <div class="metric-sub">${assignments.filter(a => a.status !== 'paid' && new Date(a.date).getFullYear() === selectedYear).length} offen</div>
+        <div class="metric-sub">${completedCount} erledigt, unbezahlt</div>
+      </div>
+
+      <div class="metric-card ${openCount > 0 ? 'warning-border' : ''}">
+        <div class="metric-icon warning-bg">📋</div>
+        <div class="metric-label">Offene Aufträge</div>
+        <div class="metric-value ${openCount > 0 ? 'warning' : ''}">${openCount}</div>
+        <div class="metric-sub">${_fmt(openFee, sym)}</div>
+      </div>
+
+      <div class="metric-card ${completedCount > 0 ? 'accent-border' : ''}">
+        <div class="metric-icon accent-bg">🔵</div>
+        <div class="metric-label">Erledigt, bez. offen</div>
+        <div class="metric-value ${completedCount > 0 ? 'accent' : ''}">${completedCount}</div>
+        <div class="metric-sub">${_fmt(stats.unpaidFee, sym)}</div>
       </div>
 
       <div class="metric-card">

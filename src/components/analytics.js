@@ -235,7 +235,7 @@ function _renderClients(assignments, clients, settings, year, sym) {
 function _renderUnpaid(assignments, clients, settings, sym) {
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c.name]));
   const unpaid = [...assignments]
-    .filter(a => a.status !== 'paid')
+    .filter(a => a.status === 'completed')
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const totalUnpaid = unpaid.reduce((s, a) => s + (a.fee ?? 0), 0);
@@ -243,15 +243,15 @@ function _renderUnpaid(assignments, clients, settings, sym) {
   if (!unpaid.length) {
     return `<div class="empty-state">
       <div class="empty-icon">✅</div>
-      <div class="empty-title">Alles bezahlt!</div>
-      <div class="empty-text">Keine offenen Zahlungen vorhanden.</div>
+      <div class="empty-title">Keine ausstehenden Zahlungen</div>
+      <div class="empty-text">Alle erledigten Aufträge wurden bezahlt.</div>
     </div>`;
   }
 
   return `
     <div class="info-box warning-box mb-4">
       <span>⏳</span>
-      <span>${unpaid.length} offene Zahlungen · Gesamt: ${_fmt(totalUnpaid, sym)}</span>
+      <span>${unpaid.length} Aufträge erledigt, Zahlung ausstehend · Gesamt: ${_fmt(totalUnpaid, sym)}</span>
     </div>
     <div class="list">
       ${unpaid.map(a => `

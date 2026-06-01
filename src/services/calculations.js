@@ -131,7 +131,7 @@ export function monthlyStats(assignments, year) {
     months[m].fee += a.fee ?? 0;
     months[m].km  += a.km ?? 0;
     if (a.kmBillable) months[m].kmBillable += a.km ?? 0;
-    if (a.status !== 'paid') months[m].unpaid += a.fee ?? 0;
+    if (a.status === 'completed') months[m].unpaid += a.fee ?? 0;
   }
 
   return months;
@@ -144,7 +144,7 @@ export function yearStats(assignments, year, settings) {
   const tax = estimateSideIncomeTax(settings, taxableNet);
   const totalKm = aYear.reduce((s, a) => s + (a.km ?? 0), 0);
   const billableKm = aYear.reduce((s, a) => s + (a.kmBillable ? (a.km ?? 0) : 0), 0);
-  const unpaidFee = aYear.filter(a => a.status !== 'paid').reduce((s, a) => s + (a.fee ?? 0), 0);
+  const unpaidFee = aYear.filter(a => a.status === 'completed').reduce((s, a) => s + (a.fee ?? 0), 0);
   const reserve = totalFee * (settings.reserveRate ?? 0.40);
 
   return {

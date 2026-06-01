@@ -149,6 +149,14 @@ class Store {
     return true;
   }
 
+  updateAssignmentStatus(id, status) {
+    const VALID = ['open', 'completed', 'paid'];
+    if (!VALID.includes(status)) return false;
+    const patch = { status };
+    if (status === 'paid') patch.paidDate = new Date().toISOString().slice(0, 10);
+    return this.updateAssignment(id, patch);
+  }
+
   deleteAssignment(id) {
     this._data.assignments = this._data.assignments.filter(a => a.id !== id);
     this._save();
