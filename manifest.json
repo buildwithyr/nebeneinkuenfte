@@ -30,6 +30,24 @@
       "short_name": "Auftrag",
       "url": "./?view=assignments&action=new",
       "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "./?view=dashboard",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Berichte",
+      "short_name": "Berichte",
+      "url": "./?view=analytics",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Auftraggeber",
+      "short_name": "Kunden",
+      "url": "./?view=clients",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

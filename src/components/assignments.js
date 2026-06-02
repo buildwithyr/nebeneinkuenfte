@@ -11,15 +11,27 @@ let filterClient = 'all';
 let filterStatus = 'all';
 let editingId = null;
 
+// Long-Press state (module-level – überlebt Re-Renders)
+let _lpTimer = null;
+let _lpFired = false;
+let _openModalFn = null;   // Referenz auf openModal aus _attachListeners
+let _escListener = null;   // Für Kontextmenü-Escape-Handler
+
 export function renderAssignments(container) {
   _render(container);
   const u1 = store.on('assignments', () => _render(container));
   const u2 = store.on('clients',     () => _render(container));
   container._assignmentsUnsub = () => { u1(); u2(); };
+  _createContextMenu();
 }
 
 export function destroyAssignments(container) {
   container._assignmentsUnsub?.();
+  clearTimeout(_lpTimer);
+  _openModalFn = null;
+  document.getElementById('ctx-backdrop')?.remove();
+  document.getElementById('ctx-menu')?.remove();
+  if (_escListener) { document.removeEventListener('keydown', _escListener); _escListener = null; }
 }
 
 function _render(container) {
@@ -246,8 +258,38 @@ function _attachListeners(container, clients, sym) {
     }
   });
 
-  // Schnellaktionen (vor Modal-Öffnung prüfen)
-  container.querySelector('#asgn-list')?.addEventListener('click', (e) => {
+  // Referenz auf openModal für Kontextmenü-Aktionen speichern
+  _openModalFn = openModal;
+
+  const list = container.querySelector('#asgn-list');
+
+  // ---- Long-Press Erkennung (Touch) ----
+  list?.addEventListener('touchstart', (e) => {
+    const item = e.target.closest('[data-asgn-id]');
+    if (!item || e.target.closest('[data-action-status]')) return;
+    _lpFired = false;
+    _lpTimer = setTimeout(() => {
+      _lpFired = true;
+      navigator.vibrate?.(8);
+      _showContextMenu(item);
+    }, 500);
+  }, { passive: true });
+
+  list?.addEventListener('touchmove',   () => clearTimeout(_lpTimer), { passive: true });
+  list?.addEventListener('touchcancel', () => clearTimeout(_lpTimer), { passive: true });
+  list?.addEventListener('touchend',    () => clearTimeout(_lpTimer), { passive: true });
+
+  // Rechtsklick (Desktop)
+  list?.addEventListener('contextmenu', (e) => {
+    const item = e.target.closest('[data-asgn-id]');
+    if (!item) return;
+    e.preventDefault();
+    _lpFired = true;
+    _showContextMenu(item);
+  });
+
+  // Schnellaktionen + normaler Klick (mit Long-Press Guard)
+  list?.addEventListener('click', (e) => {
     const actionBtn = e.target.closest('[data-action-status]');
     if (actionBtn) {
       const id        = actionBtn.dataset.actionId;
@@ -257,6 +299,7 @@ function _attachListeners(container, clients, sym) {
       else if (newStatus === 'paid') showToast('Zahlung erfasst', 'success');
       return;
     }
+    if (_lpFired) { _lpFired = false; return; }  // Long-Press → kein Modal
     const item = e.target.closest('[data-asgn-id]');
     if (item) openModal(item.dataset.asgnId);
   });
@@ -352,4 +395,121 @@ function _getFormData(form) {
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ---- Kontextmenü ----
+
+function _createContextMenu() {
+  // Vorhandene Elemente bereinigen (falls destroyAssignments nicht aufgerufen wurde)
+  document.getElementById('ctx-backdrop')?.remove();
+  document.getElementById('ctx-menu')?.remove();
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'ctx-backdrop';
+  document.body.appendChild(backdrop);
+
+  const menu = document.createElement('div');
+  menu.id = 'ctx-menu';
+  menu.innerHTML = `
+    <button data-ctx="edit">✏️ Bearbeiten</button>
+    <button data-ctx="completed">✓ Als erledigt markieren</button>
+    <button data-ctx="paid">💰 Als bezahlt markieren</button>
+    <button data-ctx="duplicate">📋 Duplizieren</button>
+    <hr class="ctx-divider">
+    <button data-ctx="delete" class="ctx-danger">🗑 Löschen</button>
+  `;
+  document.body.appendChild(menu);
+
+  backdrop.addEventListener('click', _hideContextMenu);
+
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-ctx]');
+    if (!btn) return;
+    _handleContextAction(btn.dataset.ctx, menu.dataset.forId);
+  });
+
+  _escListener = (e) => { if (e.key === 'Escape') _hideContextMenu(); };
+  document.addEventListener('keydown', _escListener);
+}
+
+function _showContextMenu(item) {
+  const menu     = document.getElementById('ctx-menu');
+  const backdrop = document.getElementById('ctx-backdrop');
+  if (!menu || !backdrop) return;
+
+  const id = item.dataset.asgnId;
+  const a  = store.getAssignment(id);
+  if (!a) return;
+
+  // Status-abhängige Einträge ein-/ausblenden
+  menu.querySelector('[data-ctx="completed"]').style.display = a.status === 'open'      ? '' : 'none';
+  menu.querySelector('[data-ctx="paid"]').style.display      = a.status === 'completed' ? '' : 'none';
+
+  // Positionierung: unter dem Item, innerhalb Viewport
+  const rect  = item.getBoundingClientRect();
+  const menuW = 220;
+  const menuH = 210;
+  let top  = rect.bottom + 6;
+  let left = rect.left + 8;
+  if (top  + menuH > window.innerHeight) top  = Math.max(8, rect.top - menuH - 6);
+  if (left + menuW > window.innerWidth)  left = Math.max(8, window.innerWidth - menuW - 8);
+
+  menu.style.top    = `${top}px`;
+  menu.style.left   = `${left}px`;
+  menu.dataset.forId = id;
+
+  backdrop.classList.add('visible');
+  menu.classList.add('visible');
+}
+
+function _hideContextMenu() {
+  document.getElementById('ctx-backdrop')?.classList.remove('visible');
+  document.getElementById('ctx-menu')?.classList.remove('visible');
+}
+
+function _handleContextAction(action, id) {
+  _hideContextMenu();
+  if (!id) return;
+  const a = store.getAssignment(id);
+  if (!a) return;
+
+  switch (action) {
+    case 'edit':
+      _openModalFn?.(id);
+      break;
+
+    case 'completed':
+      store.updateAssignmentStatus(id, 'completed');
+      showToast('Als erledigt markiert', 'success');
+      break;
+
+    case 'paid':
+      store.updateAssignmentStatus(id, 'paid');
+      showToast('Zahlung erfasst', 'success');
+      break;
+
+    case 'duplicate': {
+      const today = new Date().toISOString().slice(0, 10);
+      store.addAssignment({
+        clientId:    a.clientId,
+        description: a.description,
+        fee:         a.fee,
+        km:          a.km,
+        kmBillable:  a.kmBillable,
+        type:        a.type,
+        note:        a.note,
+        date:        today,
+        status:      'open',
+        paidDate:    null,
+      });
+      showToast('Auftrag dupliziert', 'success');
+      break;
+    }
+
+    case 'delete':
+      if (!confirm('Diesen Auftrag wirklich löschen?')) return;
+      store.deleteAssignment(id);
+      showToast('Auftrag gelöscht', 'info');
+      break;
+  }
 }
