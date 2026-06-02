@@ -25,10 +25,10 @@ export function destroySettings(container) {
   // Kein Listener registriert → nichts zu bereinigen
 }
 
-async function _render(container) {
+function _render(container) {
   const { settings } = store;
   const marginal = marginalTaxRate(settings.primaryIncomeGross ?? 46000);
-  const { data: { user } } = await supabase.auth.getUser();
+  const userEmail = _getCachedEmail();
 
   container.innerHTML = `
     <div class="page-title">Einstellungen</div>
@@ -137,7 +137,7 @@ async function _render(container) {
         <div class="settings-row">
           <div class="settings-row-label">
             <div class="label">Angemeldet als</div>
-            <div class="sub">${user?.email ?? '–'}</div>
+            <div class="sub" id="s-user-email">${userEmail ?? '–'}</div>
           </div>
           <span class="badge badge-success">Verbunden</span>
         </div>
@@ -253,6 +253,14 @@ async function _render(container) {
   `;
 
   _attachListeners(container);
+
+  // Email asynchron nachladen falls noch nicht im Cache
+  if (!userEmail) {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      const el = container.querySelector('#s-user-email');
+      if (el && user?.email) el.textContent = user.email;
+    });
+  }
 }
 
 function _attachListeners(container) {
@@ -395,4 +403,16 @@ function _lazyCalc() {
 
 function _formatPct(rate) {
   return `${(rate * 100).toFixed(1)} %`;
+}
+
+// Liest die E-Mail aus der gecachten Supabase-Session (synchron, kein await)
+function _getCachedEmail() {
+  try {
+    const key = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    if (key) {
+      const session = JSON.parse(localStorage.getItem(key));
+      return session?.user?.email ?? null;
+    }
+  } catch {}
+  return null;
 }
