@@ -1,15 +1,17 @@
 /**
- * App Controller – Navigation, Toast, Service Worker Registration
+ * App Controller – Navigation, Auth, Toast, Service Worker
  */
 
 import { store } from './services/store.js';
+import { supabase } from './services/supabase.js';
+import { db } from './services/db.js';
 import { renderDashboard,   destroyDashboard }   from './components/dashboard.js';
 import { renderAssignments, destroyAssignments } from './components/assignments.js';
 import { renderClients,     destroyClients }     from './components/clients.js';
 import { renderAnalytics,   destroyAnalytics }   from './components/analytics.js';
 import { renderSettings,    destroySettings }    from './components/settings.js';
 
-// ---- Exportiere showToast global (wird in Komponenten importiert) ----
+// ---- Toast ----
 export function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
   if (!container) return;
@@ -38,66 +40,187 @@ const VIEWS = {
 let currentView = null;
 const content = document.getElementById('app-content');
 
-function navigate(viewName) {
+export function navigate(viewName) {
   if (!VIEWS[viewName]) viewName = 'dashboard';
 
-  // Teardown vorheriger View
   if (currentView && VIEWS[currentView]) {
     VIEWS[currentView].destroy(content);
   }
 
   currentView = viewName;
 
-  // Nav-Items aktualisieren
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.view === viewName);
   });
 
-  // FAB je View anzeigen/verstecken
   const fab = document.getElementById('fab');
   if (fab) fab.style.display = viewName === 'assignments' ? 'flex' : 'none';
 
-  // Inhalt rendern
   content.scrollTop = 0;
   VIEWS[viewName].render(content);
-
-  // URL-Hash aktualisieren (für Reload)
   history.replaceState(null, '', `#${viewName}`);
 }
 
-// Globale navigate-Funktion (für onclick in Templates)
 window.app = { navigate };
 
-// ---- Initialisierung ----
-function init() {
+// ---- Login Screen ----
+
+function _showLoginScreen() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  _attachLoginListeners();
+}
+
+function _hideLoginScreen() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = '';
+}
+
+function _attachLoginListeners() {
+  const emailInput    = document.getElementById('login-email');
+  const passwordInput = document.getElementById('login-password');
+  const loginBtn      = document.getElementById('login-btn');
+  const signupBtn     = document.getElementById('signup-btn');
+  const errorEl       = document.getElementById('login-error');
+
+  function _setLoading(loading) {
+    loginBtn.disabled  = loading;
+    signupBtn.disabled = loading;
+    loginBtn.textContent  = loading ? '⏳ Bitte warten…' : 'Anmelden';
+  }
+
+  function _showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.style.display = 'block';
+  }
+
+  function _clearError() {
+    errorEl.style.display = 'none';
+  }
+
+  loginBtn.addEventListener('click', async () => {
+    const email    = emailInput.value.trim();
+    const password = passwordInput.value;
+    if (!email || !password) { _showError('Bitte E-Mail und Passwort eingeben.'); return; }
+
+    _clearError();
+    _setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    _setLoading(false);
+
+    if (error) {
+      _showError(error.message === 'Invalid login credentials'
+        ? 'Falsche E-Mail oder falsches Passwort.'
+        : error.message);
+    }
+    // Erfolg: onAuthStateChange übernimmt das Weiterleiten
+  });
+
+  signupBtn.addEventListener('click', async () => {
+    const email    = emailInput.value.trim();
+    const password = passwordInput.value;
+    if (!email || !password) { _showError('Bitte E-Mail und Passwort eingeben.'); return; }
+    if (password.length < 6) { _showError('Passwort muss mindestens 6 Zeichen haben.'); return; }
+
+    _clearError();
+    _setLoading(true);
+    const { error } = await supabase.auth.signUp({ email, password });
+    _setLoading(false);
+
+    if (error) {
+      _showError(error.message);
+    } else {
+      _showError('');
+      emailInput.value = '';
+      passwordInput.value = '';
+      showToast('Konto erstellt – bitte E-Mail bestätigen, dann anmelden.', 'success');
+    }
+  });
+
+  // Enter-Taste → Login
+  [emailInput, passwordInput].forEach(el => {
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginBtn.click(); });
+  });
+}
+
+// ---- App Initialisierung (nach Login) ----
+
+async function _initApp(user) {
+  _hideLoginScreen();
+
+  db.setUserId(user.id);
   store.init();
 
-  // Nav-Klick-Handler
+  try {
+    const remote = await db.loadAll();
+
+    if (remote.clients.length > 0 || remote.assignments.length > 0) {
+      store.importFromSupabase(remote);
+    } else {
+      // Erster Login: lokale Daten in Supabase hochladen
+      const local = store.getRawData();
+      await db.pushAll(local.clients, local.assignments, local.settings);
+    }
+  } catch (err) {
+    console.warn('[App] Supabase-Daten konnten nicht geladen werden, nutze lokale Daten:', err.message);
+    showToast('Offline-Modus – Daten werden lokal gespeichert', 'info');
+  }
+
+  // Sync-Hooks einrichten: jede lokale Änderung → Supabase
+  store.enableSync({
+    onClientChange:     (c, del) => del ? db.deleteClient(c.id)     : db.upsertClient(c),
+    onAssignmentChange: (a, del) => del ? db.deleteAssignment(a.id) : db.upsertAssignment(a),
+    onSettingsChange:   (s)      => db.saveSettings(s),
+  });
+
+  // Realtime: Änderungen von anderen Geräten empfangen
+  db.subscribeRealtime({
+    onClient:     (payload) => store.applyRealtimeClient(payload),
+    onAssignment: (payload) => store.applyRealtimeAssignment(payload),
+  });
+
+  _setupNavigation();
+  _setupTheme(user);
+  _navigateToStart();
+  _registerSW();
+}
+
+function _setupNavigation() {
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => navigate(btn.dataset.view));
   });
 
-  // FAB
   document.getElementById('fab')?.addEventListener('click', () => {
     if (currentView === 'assignments') {
       window._openNewAssignment?.();
     }
   });
+}
 
-  // Theme-Toggle im Header
+function _setupTheme(user) {
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
     const current = store.settings.theme ?? 'dark';
     store.updateSettings({ theme: current === 'dark' ? 'light' : 'dark' });
     _updateThemeIcon();
   });
 
+  // Logout-Button im Header
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.title = user.email;
+    logoutBtn.style.display = 'flex';
+    logoutBtn.addEventListener('click', async () => {
+      if (!confirm('Abmelden?')) return;
+      store.disableSync();
+      db.unsubscribeRealtime();
+      await supabase.auth.signOut();
+    });
+  }
+
   _updateThemeIcon();
+}
 
-  // Startansicht aus URL-Hash oder Default
-  const hash = location.hash.replace('#', '');
-  const startView = VIEWS[hash] ? hash : 'dashboard';
-
-  // Shortcut: ?view=assignments&action=new (aus Manifest-Shortcuts)
+function _navigateToStart() {
   const params = new URLSearchParams(location.search);
   const paramView = params.get('view');
   if (paramView && VIEWS[paramView]) {
@@ -106,11 +229,9 @@ function init() {
       setTimeout(() => window._openNewAssignment?.(), 100);
     }
   } else {
-    navigate(startView);
+    const hash = location.hash.replace('#', '');
+    navigate(VIEWS[hash] ? hash : 'dashboard');
   }
-
-  // Service Worker registrieren
-  _registerSW();
 }
 
 function _updateThemeIcon() {
@@ -129,5 +250,26 @@ async function _registerSW() {
   }
 }
 
-// Start
-document.addEventListener('DOMContentLoaded', init);
+// ---- Einstiegspunkt ----
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Auth-Status prüfen
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (session) {
+    await _initApp(session.user);
+  } else {
+    _showLoginScreen();
+  }
+
+  // Auf Auth-Änderungen reagieren (Login/Logout von außen)
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      await _initApp(session.user);
+    } else if (event === 'SIGNED_OUT') {
+      store.disableSync();
+      db.unsubscribeRealtime();
+      _showLoginScreen();
+    }
+  });
+});

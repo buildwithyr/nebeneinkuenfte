@@ -33,6 +33,16 @@ class Store {
   constructor() {
     this._data = null;
     this._listeners = {};
+    this._syncHooks = null;
+  }
+
+  /** Supabase-Sync aktivieren – nach erfolgreichem Login aufrufen */
+  enableSync(hooks) {
+    this._syncHooks = hooks;
+  }
+
+  disableSync() {
+    this._syncHooks = null;
   }
 
   /** Daten aus localStorage laden (oder Defaults) */
@@ -86,6 +96,7 @@ class Store {
     if (patch.theme !== undefined) this._applyTheme();
     this._save();
     this._emit('settings');
+    this._syncHooks?.onSettingsChange?.(this._data.settings);
   }
 
   addClient(client) {
@@ -99,6 +110,7 @@ class Store {
     this._data.clients.push(newClient);
     this._save();
     this._emit('clients');
+    this._syncHooks?.onClientChange?.(newClient, false);
     return newClient;
   }
 
@@ -108,10 +120,12 @@ class Store {
     this._data.clients[idx] = { ...this._data.clients[idx], ...patch };
     this._save();
     this._emit('clients');
+    this._syncHooks?.onClientChange?.(this._data.clients[idx], false);
     return true;
   }
 
   deleteClient(id) {
+    this._syncHooks?.onClientChange?.({ id }, true);
     this._data.clients = this._data.clients.filter(c => c.id !== id);
     this._save();
     this._emit('clients');
@@ -133,6 +147,7 @@ class Store {
     this._data.assignments.push(newAssignment);
     this._save();
     this._emit('assignments');
+    this._syncHooks?.onAssignmentChange?.(newAssignment, false);
     return newAssignment;
   }
 
@@ -146,6 +161,7 @@ class Store {
     };
     this._save();
     this._emit('assignments');
+    this._syncHooks?.onAssignmentChange?.(this._data.assignments[idx], false);
     return true;
   }
 
@@ -158,12 +174,29 @@ class Store {
   }
 
   deleteAssignment(id) {
+    this._syncHooks?.onAssignmentChange?.({ id }, true);
     this._data.assignments = this._data.assignments.filter(a => a.id !== id);
     this._save();
     this._emit('assignments');
   }
 
-  /** Vollständigen Daten-Snapshot importieren (z.B. nach Gist-Sync) */
+  /** Supabase-Daten in den lokalen Store laden (nach Login) */
+  importFromSupabase({ clients, assignments, settings }) {
+    this._data.clients = clients;
+    this._data.assignments = assignments.map(_migrateAssignment);
+    if (settings) {
+      // Supabase-Settings gewinnen, aber Gist-Credentials und Theme bleiben lokal
+      const { theme } = this._data.settings;
+      this._data.settings = { ...DEFAULT_SETTINGS, ...settings, theme };
+    }
+    this._applyTheme();
+    this._save();
+    this._emit('clients');
+    this._emit('assignments');
+    this._emit('settings');
+  }
+
+  /** Vollständigen Daten-Snapshot importieren (z.B. nach JSON-Import) */
   importData(raw) {
     this._data = {
       version: '1.0',
@@ -176,6 +209,38 @@ class Store {
     this._save();
     this._emit('settings');
     this._emit('clients');
+    this._emit('assignments');
+  }
+
+  // ---- Realtime (von anderem Gerät) ----
+
+  applyRealtimeClient({ type, record }) {
+    if (type === 'DELETE') {
+      this._data.clients = this._data.clients.filter(c => c.id !== record.id);
+    } else {
+      const idx = this._data.clients.findIndex(c => c.id === record.id);
+      if (idx >= 0) {
+        this._data.clients[idx] = { ...this._data.clients[idx], ...record };
+      } else {
+        this._data.clients.push(record);
+      }
+    }
+    this._save();
+    this._emit('clients');
+  }
+
+  applyRealtimeAssignment({ type, record }) {
+    if (type === 'DELETE') {
+      this._data.assignments = this._data.assignments.filter(a => a.id !== record.id);
+    } else {
+      const idx = this._data.assignments.findIndex(a => a.id === record.id);
+      if (idx >= 0) {
+        this._data.assignments[idx] = { ...this._data.assignments[idx], ...record };
+      } else {
+        this._data.assignments.push(_migrateAssignment(record));
+      }
+    }
+    this._save();
     this._emit('assignments');
   }
 
