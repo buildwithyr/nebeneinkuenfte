@@ -155,23 +155,38 @@ export const db = {
    */
   subscribeRealtime({ onClient, onAssignment }) {
     if (this._channel) supabase.removeChannel(this._channel);
+    const userId = this._userId;
 
     this._channel = supabase
       .channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, (payload) => {
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'clients',
+        filter: `user_id=eq.${userId}`,
+      }, (payload) => {
         onClient({
           type: payload.eventType,
           record: payload.eventType === 'DELETE' ? payload.old : _rowToClient(payload.new),
         });
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, (payload) => {
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'assignments',
+        filter: `user_id=eq.${userId}`,
+      }, (payload) => {
         onAssignment({
           type: payload.eventType,
           record: payload.eventType === 'DELETE' ? payload.old : _rowToAssignment(payload.new),
         });
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') console.log('[DB] Realtime verbunden');
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[DB] Realtime verbunden ✓');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[DB] Realtime Fehler:', status, err);
+        }
       });
   },
 
