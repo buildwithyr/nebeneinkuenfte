@@ -45,30 +45,53 @@ export function marginalTaxRate(grossIncome) {
  *
  * Methode: Gesamteinkünfte = Hauptberuf + Nebeneinkünfte
  * Geschätzte Steuer = Steuer(gesamt) - Steuer(Hauptberuf)
- * → Berücksichtigt Progression korrekt
+ *
+ * § 41 Abs. 3 EStG – Freigrenze und Einschleifregelung:
+ * - Bis 730 €: keine Steuer (Freigrenze)
+ * - 730 € – 1.460 €: Einschleifregelung → volle_steuer × (gewinn − 730) / 730
+ * - Ab 1.460 €: voller Progressionsbetrag
  *
  * HINWEIS: Vereinfacht – ohne Sonderausgaben, Werbungskosten, SV-Beiträge
  */
+export const FREIGRENZE = 730;
+export const EINSCHLEIF_ENDE = 1460; // 2 × Freigrenze
+
 export function estimateSideIncomeTax(settings, sideIncomeNet) {
-  if (sideIncomeNet <= 0) return { taxAmount: 0, effectiveRate: 0, marginalRate: 0 };
+  if (sideIncomeNet <= 0) return { taxAmount: 0, effectiveRate: 0, marginalRate: 0, freigrenzeFree: FREIGRENZE, freigreuzePct: 0 };
+
+  const freigrenzeFree = Math.max(0, FREIGRENZE - sideIncomeNet);
+  const freigrenzePct  = Math.min(1, sideIncomeNet / FREIGRENZE);
 
   if (!settings.useAutomaticTaxRate) {
     const rate = settings.manualTaxRate ?? 0.40;
+    // Einschleifregelung auch bei manuellem Satz anwenden
+    const fullTax = sideIncomeNet * rate;
+    const taxAmount = _applyEinschleif(fullTax, sideIncomeNet);
     return {
-      taxAmount: sideIncomeNet * rate,
-      effectiveRate: rate,
+      taxAmount,
+      effectiveRate: taxAmount / sideIncomeNet,
       marginalRate: rate,
+      freigrenzeFree,
+      freigrenzePct,
     };
   }
 
-  const primaryGross = settings.primaryIncomeGross ?? 46000;
-  const taxOnPrimary = calcAustrianTax(primaryGross);
-  const taxOnTotal   = calcAustrianTax(primaryGross + sideIncomeNet);
-  const taxAmount    = Math.max(0, taxOnTotal - taxOnPrimary);
-  const effectiveRate = sideIncomeNet > 0 ? taxAmount / sideIncomeNet : 0;
-  const mRate = marginalTaxRate(primaryGross);
+  const primaryGross  = settings.primaryIncomeGross ?? 46000;
+  const taxOnPrimary  = calcAustrianTax(primaryGross);
+  const taxOnTotal    = calcAustrianTax(primaryGross + sideIncomeNet);
+  const fullTax       = Math.max(0, taxOnTotal - taxOnPrimary);
+  const taxAmount     = _applyEinschleif(fullTax, sideIncomeNet);
+  const effectiveRate = taxAmount / sideIncomeNet;
+  const mRate         = marginalTaxRate(primaryGross);
 
-  return { taxAmount, effectiveRate, marginalRate: mRate };
+  return { taxAmount, effectiveRate, marginalRate: mRate, freigrenzeFree, freigrenzePct };
+}
+
+/** § 41 Abs. 3 EStG – Freigrenze + Einschleifregelung auf einen berechneten Steuerbetrag anwenden */
+function _applyEinschleif(fullTax, sideIncomeNet) {
+  if (sideIncomeNet <= FREIGRENZE)    return 0;
+  if (sideIncomeNet <= EINSCHLEIF_ENDE) return fullTax * (sideIncomeNet - FREIGRENZE) / FREIGRENZE;
+  return fullTax;
 }
 
 /**

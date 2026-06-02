@@ -7,6 +7,7 @@ import { store } from '../services/store.js';
 import {
   yearStats, monthlyStats, clientStats, availableYears, filterByYear,
   formatCurrency, formatKm, formatPercent, formatDate,
+  FREIGRENZE, EINSCHLEIF_ENDE,
 } from '../services/calculations.js';
 
 let chartBar = null;
@@ -105,6 +106,8 @@ function _render(container) {
         <div class="metric-sub">${formatPercent(stats.tax.effectiveRate)} eff. Rate</div>
       </div>
 
+      ${_renderFreigrezeCard(stats, sym)}
+
       <div class="metric-card warning-border">
         <div class="metric-icon warning-bg">🏦</div>
         <div class="metric-label">Empf. Rücklage*</div>
@@ -115,7 +118,7 @@ function _render(container) {
 
     <div class="info-box warning-box mb-4">
       <span>⚠️</span>
-      <span>* Alle Steuer- und Rücklagewerte sind unverbindliche Schätzungen / Richtwerte und ersetzen keine steuerliche Beratung. Grenzsteuersatz: ${formatPercent(stats.tax.marginalRate)}.</span>
+      <span>* Schätzungen / Richtwerte, keine Steuerberatung. Inkl. § 41 Abs. 3 EStG Freigrenze (${FREIGRENZE} €) und Einschleifregelung (bis ${EINSCHLEIF_ENDE} €). Grenzsteuersatz: ${formatPercent(stats.tax.marginalRate)}.</span>
     </div>
 
     <!-- Monatschart -->
@@ -284,6 +287,40 @@ function _thisMonthCount(assignments) {
     const d = new Date(a.date);
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   }).length;
+}
+
+function _renderFreigrezeCard(stats, sym) {
+  const net      = stats.taxableNet;   // steuerpflichtiger Gewinn nach km-Abzug
+  const free     = Math.max(0, FREIGRENZE - net);
+  const pct      = Math.min(100, (net / FREIGRENZE) * 100).toFixed(0);
+  const isOver   = net > FREIGRENZE;
+  const isEinschleif = net > FREIGRENZE && net <= EINSCHLEIF_ENDE;
+
+  let statusText, barColor, cardClass;
+  if (net <= FREIGRENZE) {
+    statusText = `Noch ${_fmt(free, sym)} frei`;
+    barColor   = 'var(--success)';
+    cardClass  = '';
+  } else if (isEinschleif) {
+    statusText = `Einschleifregelung aktiv`;
+    barColor   = 'var(--warning)';
+    cardClass  = 'warning-border';
+  } else {
+    statusText = `Voller Grenzsteuersatz`;
+    barColor   = 'var(--danger)';
+    cardClass  = 'danger-border';
+  }
+
+  return `
+    <div class="metric-card ${cardClass}">
+      <div class="metric-icon ${net <= FREIGRENZE ? 'accent-bg' : isEinschleif ? 'warning-bg' : 'danger-bg'}">🎯</div>
+      <div class="metric-label">Freigrenze ${FREIGRENZE} €*</div>
+      <div class="metric-value ${net <= FREIGRENZE ? 'success' : isEinschleif ? 'warning' : 'danger'}">${_fmt(net, sym)}</div>
+      <div class="metric-sub">${statusText}</div>
+      <div style="margin-top:6px;height:4px;border-radius:2px;background:var(--border);overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:2px;transition:width 0.4s"></div>
+      </div>
+    </div>`;
 }
 
 function _fmt(v, sym) { return `${sym} ${(v ?? 0).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
