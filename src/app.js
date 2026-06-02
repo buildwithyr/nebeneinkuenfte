@@ -145,10 +145,20 @@ function _attachLoginListeners() {
 
 // ---- App Initialisierung (nach Login) ----
 
+let appInitialized = false;
+
 async function _initApp(user) {
   _hideLoginScreen();
-
   db.setUserId(user.id);
+
+  // SIGNED_IN kann mehrfach feuern (Token-Refresh, Tab-Fokus).
+  // Beim zweiten Mal NICHT alles neu aufsetzen – nur frisch synchronisieren.
+  if (appInitialized) {
+    await _resume();
+    return;
+  }
+  appInitialized = true;
+
   store.init();
 
   try {
@@ -181,8 +191,106 @@ async function _initApp(user) {
 
   _setupNavigation();
   _setupTheme(user);
+  _setupPullToRefresh();
+  _setupResumeSync();
   _navigateToStart();
   _registerSW();
+}
+
+// ---- Sync von Supabase (für Pull-to-Refresh und Resume-Sync) ----
+
+export async function syncFromSupabase() {
+  try {
+    const remote = await db.loadAll();
+    // Remote ist nach der Initialisierung die maßgebliche Quelle –
+    // immer übernehmen, damit auch Löschungen von anderen Geräten ankommen.
+    store.importFromSupabase(remote);
+    return true;
+  } catch (err) {
+    console.warn('[App] Sync fehlgeschlagen:', err.message);
+    return false;
+  }
+}
+
+// ---- Resume-Sync: bei App-Rückkehr Realtime neu verbinden + voller Abgleich ----
+// Realtime-WebSockets sterben auf Mobilgeräten beim Backgrounden. iOS feuert
+// visibilitychange nicht zuverlässig – darum mehrere Events + Reconnect.
+
+let _resumeTimer = null;
+
+async function _resume() {
+  db.reconnectRealtime();
+  await syncFromSupabase();
+}
+
+function _setupResumeSync() {
+  const onResume = () => {
+    if (document.visibilityState !== 'visible') return;
+    clearTimeout(_resumeTimer);
+    _resumeTimer = setTimeout(_resume, 150);
+  };
+
+  document.addEventListener('visibilitychange', onResume);
+  window.addEventListener('focus', onResume);
+  window.addEventListener('pageshow', onResume);
+  window.addEventListener('online', () => { _resume(); });
+}
+
+// ---- Pull-to-Refresh ----
+
+function _setupPullToRefresh() {
+  const appContent = document.getElementById('app-content');
+  const indicator  = document.getElementById('pull-indicator');
+  if (!appContent || !indicator) return;
+
+  const THRESHOLD = 72;
+  let startY = 0;
+  let pulling = false;
+  let triggered = false;
+
+  appContent.addEventListener('touchstart', (e) => {
+    if (appContent.scrollTop > 0) return;
+    startY   = e.touches[0].clientY;
+    pulling  = true;
+    triggered = false;
+  }, { passive: true });
+
+  appContent.addEventListener('touchmove', (e) => {
+    if (!pulling || appContent.scrollTop > 0) return;
+    const delta = e.touches[0].clientY - startY;
+    if (delta <= 0) return;
+
+    const progress = Math.min(delta / THRESHOLD, 1);
+    const translateY = Math.min(delta * 0.45, THRESHOLD * 0.55);
+    indicator.style.transform = `translateY(${translateY}px)`;
+    indicator.style.opacity   = String(progress);
+    indicator.classList.toggle('ready', progress >= 1);
+  }, { passive: true });
+
+  appContent.addEventListener('touchend', async () => {
+    if (!pulling) return;
+    pulling = false;
+
+    const isReady = indicator.classList.contains('ready');
+    indicator.classList.remove('ready');
+
+    if (!isReady || triggered) {
+      indicator.style.transform = '';
+      indicator.style.opacity   = '0';
+      return;
+    }
+
+    triggered = true;
+    indicator.classList.add('loading');
+    indicator.style.transform = `translateY(${THRESHOLD * 0.55}px)`;
+
+    const ok = await syncFromSupabase();
+    if (ok) showToast('Synchronisiert', 'success');
+
+    indicator.classList.remove('loading');
+    indicator.style.transform = '';
+    indicator.style.opacity   = '0';
+  });
 }
 
 function _setupNavigation() {
@@ -267,6 +375,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (event === 'SIGNED_IN' && session) {
       await _initApp(session.user);
     } else if (event === 'SIGNED_OUT') {
+      appInitialized = false;
       store.disableSync();
       db.unsubscribeRealtime();
       _showLoginScreen();

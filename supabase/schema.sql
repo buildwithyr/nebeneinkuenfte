@@ -64,5 +64,10 @@ create policy "own_settings" on public.user_settings
 -- Änderungen werden live an andere Geräte gepusht
 -- ============================================================
 
+-- Replica Identity FULL: DELETE-Events enthalten alle Spalten (inkl. user_id)
+-- Notwendig damit der user_id-Filter bei DELETE-Events funktioniert
+alter table public.clients     replica identity full;
+alter table public.assignments replica identity full;
+
 alter publication supabase_realtime add table public.clients;
 alter publication supabase_realtime add table public.assignments;

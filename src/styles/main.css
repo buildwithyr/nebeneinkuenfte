@@ -1218,6 +1218,46 @@ textarea.form-control {
 }
 
 /* =========================================================
+   Pull-to-Refresh
+   ========================================================= */
+#pull-indicator {
+  position: fixed;
+  top: var(--header-height);
+  left: 50%;
+  transform: translateX(-50%) translateY(-48px);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  opacity: 0;
+  transition: none;
+  pointer-events: none;
+  box-shadow: var(--shadow-md);
+}
+
+#pull-indicator.ready .pull-spinner {
+  border-top-color: var(--accent);
+}
+
+#pull-indicator.loading {
+  transition: opacity 200ms;
+}
+
+.pull-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--text-muted);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* =========================================================
    Login Screen
    ========================================================= */
 #login-screen {
