@@ -145,10 +145,20 @@ function _attachLoginListeners() {
 
 // ---- App Initialisierung (nach Login) ----
 
+let appInitialized = false;
+
 async function _initApp(user) {
   _hideLoginScreen();
-
   db.setUserId(user.id);
+
+  // SIGNED_IN kann mehrfach feuern (Token-Refresh, Tab-Fokus).
+  // Beim zweiten Mal NICHT alles neu aufsetzen – nur frisch synchronisieren.
+  if (appInitialized) {
+    await _resume();
+    return;
+  }
+  appInitialized = true;
+
   store.init();
 
   try {
@@ -182,24 +192,48 @@ async function _initApp(user) {
   _setupNavigation();
   _setupTheme(user);
   _setupPullToRefresh();
-  _setupVisibilitySync();
+  _setupResumeSync();
   _navigateToStart();
   _registerSW();
 }
 
-// ---- Sync von Supabase (für Pull-to-Refresh und Fokus-Sync) ----
+// ---- Sync von Supabase (für Pull-to-Refresh und Resume-Sync) ----
 
 export async function syncFromSupabase() {
   try {
     const remote = await db.loadAll();
-    if (remote.clients.length > 0 || remote.assignments.length > 0) {
-      store.importFromSupabase(remote);
-    }
+    // Remote ist nach der Initialisierung die maßgebliche Quelle –
+    // immer übernehmen, damit auch Löschungen von anderen Geräten ankommen.
+    store.importFromSupabase(remote);
     return true;
   } catch (err) {
     console.warn('[App] Sync fehlgeschlagen:', err.message);
     return false;
   }
+}
+
+// ---- Resume-Sync: bei App-Rückkehr Realtime neu verbinden + voller Abgleich ----
+// Realtime-WebSockets sterben auf Mobilgeräten beim Backgrounden. iOS feuert
+// visibilitychange nicht zuverlässig – darum mehrere Events + Reconnect.
+
+let _resumeTimer = null;
+
+async function _resume() {
+  db.reconnectRealtime();
+  await syncFromSupabase();
+}
+
+function _setupResumeSync() {
+  const onResume = () => {
+    if (document.visibilityState !== 'visible') return;
+    clearTimeout(_resumeTimer);
+    _resumeTimer = setTimeout(_resume, 150);
+  };
+
+  document.addEventListener('visibilitychange', onResume);
+  window.addEventListener('focus', onResume);
+  window.addEventListener('pageshow', onResume);
+  window.addEventListener('online', () => { _resume(); });
 }
 
 // ---- Pull-to-Refresh ----
@@ -256,16 +290,6 @@ function _setupPullToRefresh() {
     indicator.classList.remove('loading');
     indicator.style.transform = '';
     indicator.style.opacity   = '0';
-  });
-}
-
-// ---- Sync bei App-Fokus (Fallback falls Realtime Event verpasst wurde) ----
-
-function _setupVisibilitySync() {
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      syncFromSupabase();
-    }
   });
 }
 
@@ -351,6 +375,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (event === 'SIGNED_IN' && session) {
       await _initApp(session.user);
     } else if (event === 'SIGNED_OUT') {
+      appInitialized = false;
       store.disableSync();
       db.unsubscribeRealtime();
       _showLoginScreen();

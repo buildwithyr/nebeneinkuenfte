@@ -153,8 +153,16 @@ export const db = {
    * Realtime-Abonnement starten.
    * Callbacks erhalten { type: 'INSERT'|'UPDATE'|'DELETE', record: ... }
    */
-  subscribeRealtime({ onClient, onAssignment }) {
-    if (this._channel) supabase.removeChannel(this._channel);
+  subscribeRealtime(callbacks) {
+    // Callbacks merken, damit reconnectRealtime() ohne Argumente funktioniert
+    if (callbacks) this._callbacks = callbacks;
+    const { onClient, onAssignment } = this._callbacks ?? {};
+    if (!onClient || !onAssignment) return;
+
+    if (this._channel) {
+      supabase.removeChannel(this._channel);
+      this._channel = null;
+    }
     const userId = this._userId;
 
     this._channel = supabase
@@ -184,13 +192,24 @@ export const db = {
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           console.log('[DB] Realtime verbunden ✓');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('[DB] Realtime Fehler:', status, err);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn('[DB] Realtime getrennt:', status, err?.message ?? '');
+          // Einmaliger verzögerter Reconnect-Versuch (z.B. nach Netzwechsel)
+          clearTimeout(this._reconnectTimer);
+          this._reconnectTimer = setTimeout(() => this.reconnectRealtime(), 3000);
         }
       });
   },
 
+  /** Realtime-Kanal neu aufbauen (z.B. nach App-Resume / Netzwechsel) */
+  reconnectRealtime() {
+    if (!this._userId || !this._callbacks) return;
+    this.subscribeRealtime();
+  },
+
   unsubscribeRealtime() {
+    clearTimeout(this._reconnectTimer);
+    this._callbacks = null;
     if (this._channel) {
       supabase.removeChannel(this._channel);
       this._channel = null;

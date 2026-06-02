@@ -9,7 +9,7 @@
  * beim ersten Fetch dynamisch gecacht (cache-first mit Network-Fallback).
  */
 
-const CACHE_VERSION = 'v2.1.0';
+const CACHE_VERSION = 'v2.2.0';
 const STATIC_CACHE  = `nebeneinkuenfte-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `nebeneinkuenfte-dynamic-${CACHE_VERSION}`;
 
@@ -31,7 +31,7 @@ const LOCAL_ASSETS = [
   'src/components/clients.js',
   'src/components/analytics.js',
   'src/components/settings.js',
-  'assets/icons/icon-180.png',
+  'assets/icons/apple-touch-icon.png',
   'assets/icons/icon-192.png',
   'assets/icons/icon-512.png',
   'assets/vendor/chart.umd.js',
