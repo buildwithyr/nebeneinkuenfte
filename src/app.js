@@ -181,8 +181,92 @@ async function _initApp(user) {
 
   _setupNavigation();
   _setupTheme(user);
+  _setupPullToRefresh();
+  _setupVisibilitySync();
   _navigateToStart();
   _registerSW();
+}
+
+// ---- Sync von Supabase (für Pull-to-Refresh und Fokus-Sync) ----
+
+export async function syncFromSupabase() {
+  try {
+    const remote = await db.loadAll();
+    if (remote.clients.length > 0 || remote.assignments.length > 0) {
+      store.importFromSupabase(remote);
+    }
+    return true;
+  } catch (err) {
+    console.warn('[App] Sync fehlgeschlagen:', err.message);
+    return false;
+  }
+}
+
+// ---- Pull-to-Refresh ----
+
+function _setupPullToRefresh() {
+  const appContent = document.getElementById('app-content');
+  const indicator  = document.getElementById('pull-indicator');
+  if (!appContent || !indicator) return;
+
+  const THRESHOLD = 72;
+  let startY = 0;
+  let pulling = false;
+  let triggered = false;
+
+  appContent.addEventListener('touchstart', (e) => {
+    if (appContent.scrollTop > 0) return;
+    startY   = e.touches[0].clientY;
+    pulling  = true;
+    triggered = false;
+  }, { passive: true });
+
+  appContent.addEventListener('touchmove', (e) => {
+    if (!pulling || appContent.scrollTop > 0) return;
+    const delta = e.touches[0].clientY - startY;
+    if (delta <= 0) return;
+
+    const progress = Math.min(delta / THRESHOLD, 1);
+    const translateY = Math.min(delta * 0.45, THRESHOLD * 0.55);
+    indicator.style.transform = `translateY(${translateY}px)`;
+    indicator.style.opacity   = String(progress);
+    indicator.classList.toggle('ready', progress >= 1);
+  }, { passive: true });
+
+  appContent.addEventListener('touchend', async () => {
+    if (!pulling) return;
+    pulling = false;
+
+    const isReady = indicator.classList.contains('ready');
+    indicator.classList.remove('ready');
+
+    if (!isReady || triggered) {
+      indicator.style.transform = '';
+      indicator.style.opacity   = '0';
+      return;
+    }
+
+    triggered = true;
+    indicator.classList.add('loading');
+    indicator.style.transform = `translateY(${THRESHOLD * 0.55}px)`;
+
+    const ok = await syncFromSupabase();
+    if (ok) showToast('Synchronisiert', 'success');
+
+    indicator.classList.remove('loading');
+    indicator.style.transform = '';
+    indicator.style.opacity   = '0';
+  });
+}
+
+// ---- Sync bei App-Fokus (Fallback falls Realtime Event verpasst wurde) ----
+
+function _setupVisibilitySync() {
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      syncFromSupabase();
+    }
+  });
 }
 
 function _setupNavigation() {
