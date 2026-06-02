@@ -9,7 +9,7 @@
  * beim ersten Fetch dynamisch gecacht (cache-first mit Network-Fallback).
  */
 
-const CACHE_VERSION = 'v1.0.1';
+const CACHE_VERSION = 'v2.0.0';
 const STATIC_CACHE  = `nebeneinkuenfte-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `nebeneinkuenfte-dynamic-${CACHE_VERSION}`;
 
@@ -24,7 +24,8 @@ const LOCAL_ASSETS = [
   'src/services/storage.js',
   'src/services/calculations.js',
   'src/services/export.js',
-  'src/services/sync.js',
+  'src/services/supabase.js',
+  'src/services/db.js',
   'src/components/dashboard.js',
   'src/components/assignments.js',
   'src/components/clients.js',
@@ -33,6 +34,7 @@ const LOCAL_ASSETS = [
   'assets/icons/icon-192.png',
   'assets/icons/icon-512.png',
   'assets/vendor/chart.umd.js',
+  'assets/vendor/supabase.umd.js',
 ];
 
 // Install: Jede Datei einzeln cachen – ein Fehler blockiert nicht den Rest

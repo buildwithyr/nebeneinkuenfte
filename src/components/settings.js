@@ -10,9 +10,9 @@
  */
 
 import { store } from '../services/store.js';
-import { syncService } from '../services/sync.js';
+import { supabase } from '../services/supabase.js';
 import { exportService } from '../services/export.js';
-import { showToast } from '../app.js';
+import { showToast, navigate } from '../app.js';
 import { marginalTaxRate, formatPercent } from '../services/calculations.js';
 
 export function renderSettings(container) {
@@ -25,10 +25,10 @@ export function destroySettings(container) {
   // Kein Listener registriert → nichts zu bereinigen
 }
 
-function _render(container) {
+async function _render(container) {
   const { settings } = store;
   const marginal = marginalTaxRate(settings.primaryIncomeGross ?? 46000);
-  const hasUnsync = _hasUnsyncedChanges(settings);
+  const { data: { user } } = await supabase.auth.getUser();
 
   container.innerHTML = `
     <div class="page-title">Einstellungen</div>
@@ -129,65 +129,39 @@ function _render(container) {
       </div>
     </div>
 
-    <!-- Synchronisation -->
+    <!-- Konto & Sync -->
     <div class="settings-section">
-      <div class="settings-section-title">Synchronisation (Optional)</div>
-
-      ${hasUnsync ? `
-        <div class="info-box warning-box mb-3">
-          <span>🔴</span>
-          <span>Es gibt lokale Änderungen, die noch nicht synchronisiert wurden.</span>
-        </div>
-      ` : settings.lastSyncAt ? `
-        <div class="info-box success-box mb-3">
-          <span>✅</span>
-          <span>Zuletzt synchronisiert: ${new Date(settings.lastSyncAt).toLocaleString('de-AT')}</span>
-        </div>
-      ` : ''}
-
+      <div class="settings-section-title">Konto & Synchronisation</div>
       <div class="settings-card">
 
         <div class="settings-row">
           <div class="settings-row-label">
-            <div class="label">GitHub Personal Access Token</div>
-            <div class="sub">Scope "gist" genügt · wird nur lokal gespeichert</div>
+            <div class="label">Angemeldet als</div>
+            <div class="sub">${user?.email ?? '–'}</div>
           </div>
-        </div>
-        <div class="settings-row" style="padding-top:0">
-          <input class="form-control" type="password" id="s-gist-token"
-            placeholder="ghp_…" value="${settings.gistToken ?? ''}"
-            style="font-family:var(--font-mono);font-size:0.8rem">
+          <span class="badge badge-success">Verbunden</span>
         </div>
 
         <div class="settings-row">
           <div class="settings-row-label">
-            <div class="label">Gist ID</div>
-            <div class="sub">Leer → Neuen Gist anlegen</div>
+            <div class="label">Sync-Status</div>
+            <div class="sub">Änderungen werden automatisch gespeichert</div>
           </div>
-        </div>
-        <div class="settings-row" style="padding-top:0">
-          <input class="form-control" type="text" id="s-gist-id"
-            placeholder="abc123…" value="${settings.gistId ?? ''}"
-            style="font-family:var(--font-mono);font-size:0.8rem">
+          <span class="badge badge-success">Aktiv</span>
         </div>
 
-        <div class="settings-row" style="gap:8px;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm" id="s-save-sync" style="flex:1">Speichern</button>
-          <button class="btn btn-primary btn-sm" id="s-sync-now" style="flex:1"
-            ${syncService.isConfigured ? '' : 'disabled'}>
-            🔄 Jetzt synchronisieren
-          </button>
-          <button class="btn btn-secondary btn-sm" id="s-create-gist" style="flex:1"
-            ${settings.gistToken ? '' : 'disabled'}>
-            ✨ Neuen Gist anlegen
-          </button>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <div class="label">Abmelden</div>
+            <div class="sub">Du wirst zur Login-Seite weitergeleitet</div>
+          </div>
+          <button class="btn btn-danger btn-sm" id="s-logout">Abmelden</button>
         </div>
 
       </div>
-
       <div class="info-box mt-3">
-        <span>🔐</span>
-        <span>Token wird ausschließlich im localStorage dieses Geräts gespeichert. Kein automatischer Hintergrund-Sync. Synchronisation startet nur auf Knopfdruck.</span>
+        <span>☁️</span>
+        <span>Daten werden automatisch mit Supabase synchronisiert. Alle Geräte bleiben in Echtzeit auf dem neuesten Stand.</span>
       </div>
     </div>
 
@@ -342,69 +316,12 @@ function _attachListeners(container) {
   });
 
   // ---------------------------------------------------------------
-  // Sync: Nur auf expliziten Benutzer-Befehl
+  // Konto: Abmelden
   // ---------------------------------------------------------------
 
-  container.querySelector('#s-save-sync')?.addEventListener('click', () => {
-    const token  = container.querySelector('#s-gist-token')?.value?.trim() ?? '';
-    const gistId = container.querySelector('#s-gist-id')?.value?.trim() ?? '';
-    store.updateSettings({ gistToken: token, gistId });
-    // Sync- und Create-Button aktivieren/deaktivieren
-    const syncBtn   = container.querySelector('#s-sync-now');
-    const createBtn = container.querySelector('#s-create-gist');
-    if (syncBtn)   syncBtn.disabled   = !(token && gistId);
-    if (createBtn) createBtn.disabled = !token;
-    showToast('Sync-Einstellungen gespeichert', 'success');
-  });
-
-  container.querySelector('#s-create-gist')?.addEventListener('click', async (e) => {
-    const btn   = e.currentTarget;
-    const token = container.querySelector('#s-gist-token')?.value?.trim();
-    if (!token) { showToast('Bitte Token eingeben', 'error'); return; }
-
-    btn.disabled = true;
-    btn.textContent = '⏳ Anlegen…';
-    try {
-      store.updateSettings({ gistToken: token });
-      const id = await syncService.createGist(token);
-      store.updateSettings({ gistId: id });
-      // Gist-ID Feld befüllen ohne Seite neu zu laden
-      const idInput = container.querySelector('#s-gist-id');
-      if (idInput) idInput.value = id;
-      const syncBtn = container.querySelector('#s-sync-now');
-      if (syncBtn) syncBtn.disabled = false;
-      showToast(`Gist angelegt: ${id}`, 'success');
-    } catch (err) {
-      showToast('Fehler: ' + err.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = '✨ Neuen Gist anlegen';
-    }
-  });
-
-  container.querySelector('#s-sync-now')?.addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    btn.textContent = '⏳ Synchronisiere…';
-    try {
-      // Sicherstellen, dass aktuelle Tokenwerte verwendet werden
-      const token  = container.querySelector('#s-gist-token')?.value?.trim() ?? store.settings.gistToken;
-      const gistId = container.querySelector('#s-gist-id')?.value?.trim() ?? store.settings.gistId;
-      if (token !== store.settings.gistToken || gistId !== store.settings.gistId) {
-        store.updateSettings({ gistToken: token, gistId });
-      }
-
-      const result = await syncService.sync();
-      showToast(result.message, 'success');
-
-      // Sync-Status im DOM aktualisieren ohne vollständigen Rebuild
-      _updateSyncStatus(container, store.settings);
-    } catch (err) {
-      showToast('Sync-Fehler: ' + err.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = '🔄 Jetzt synchronisieren';
-    }
+  container.querySelector('#s-logout')?.addEventListener('click', async () => {
+    if (!confirm('Wirklich abmelden?')) return;
+    await supabase.auth.signOut();
   });
 
   // ---------------------------------------------------------------
@@ -463,36 +380,6 @@ function _attachListeners(container) {
   });
 }
 
-/** Sync-Status-Box im DOM aktualisieren ohne HTML-Rebuild */
-function _updateSyncStatus(container, settings) {
-  // Kein direkter Zugriff auf spezifische Status-Div-Elemente nötig –
-  // einfach den Abschnitt über der Sync-Card aktualisieren
-  const section = container.querySelector('.settings-section:nth-child(3)');
-  if (!section) return;
-
-  const hasUnsync = _hasUnsyncedChanges(settings);
-  let infoBox = section.querySelector('.info-box.mb-3');
-
-  const html = hasUnsync
-    ? `<div class="info-box warning-box mb-3"><span>🔴</span><span>Es gibt lokale Änderungen, die noch nicht synchronisiert wurden.</span></div>`
-    : settings.lastSyncAt
-    ? `<div class="info-box success-box mb-3"><span>✅</span><span>Zuletzt synchronisiert: ${new Date(settings.lastSyncAt).toLocaleString('de-AT')}</span></div>`
-    : '';
-
-  if (infoBox) {
-    infoBox.outerHTML = html;
-  } else if (html) {
-    section.querySelector('.settings-card')?.insertAdjacentHTML('beforebegin', html);
-  }
-}
-
-/** Prüft ob lokale Daten neuer als letzter Sync sind */
-function _hasUnsyncedChanges(settings) {
-  if (!settings.lastSyncAt) return false;
-  const lastSync   = new Date(settings.lastSyncAt).getTime();
-  const lastModified = new Date(store.meta?.lastModified ?? 0).getTime();
-  return lastModified > lastSync;
-}
 
 function _storageSize() {
   try {
