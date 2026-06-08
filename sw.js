@@ -9,7 +9,8 @@
  * beim ersten Fetch dynamisch gecacht (cache-first mit Network-Fallback).
  */
 
-const CACHE_VERSION = 'v2.2.0';
+// WICHTIG: Gleich halten mit APP_VERSION in src/app.js (SW kann nicht importieren).
+const CACHE_VERSION = 'v2.3.0';
 const STATIC_CACHE  = `nebeneinkuenfte-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `nebeneinkuenfte-dynamic-${CACHE_VERSION}`;
 

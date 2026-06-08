@@ -6,7 +6,7 @@
 import { store } from '../services/store.js';
 import {
   yearStats, monthlyStats, clientStats, availableYears, filterByYear,
-  formatCurrency, formatKm, formatPercent, formatDate,
+  formatCurrency, formatKm, formatPercent, formatDate, escapeHtml,
   FREIGRENZE, EINSCHLEIF_ENDE,
 } from '../services/calculations.js';
 
@@ -106,7 +106,7 @@ function _render(container) {
         <div class="metric-sub">${formatPercent(stats.tax.effectiveRate)} eff. Rate</div>
       </div>
 
-      ${_renderFreigrezeCard(stats, sym)}
+      ${_renderFreigrenzeCard(stats, sym)}
 
       <div class="metric-card warning-border">
         <div class="metric-icon warning-bg">🏦</div>
@@ -138,7 +138,7 @@ function _render(container) {
       ${clientS.filter(c => c.count > 0).map(cs => `
         <div class="stat-row">
           <div>
-            <div class="stat-row-label" style="font-weight:600;color:var(--text-primary)">${cs.client.name}</div>
+            <div class="stat-row-label" style="font-weight:600;color:var(--text-primary)">${_esc(cs.client.name)}</div>
             <div class="stat-row-label">${cs.count} Aufträge · Ø ${_fmt(cs.avg, sym)}</div>
           </div>
           <div class="text-right">
@@ -251,7 +251,7 @@ function _recentAssignments(assignments, clients, sym) {
       <div class="list-item-main">
         <div class="list-item-title">${_esc(a.description || clientMap[a.clientId] || '–')}</div>
         <div class="list-item-meta">
-          <span>${clientMap[a.clientId] ?? '–'}</span>
+          <span>${_esc(clientMap[a.clientId] ?? '–')}</span>
           <span>·</span>
           <span>${formatDate(a.date)}</span>
           ${a.km > 0 ? `<span>· ${a.km} km</span>` : ''}
@@ -289,7 +289,7 @@ function _thisMonthCount(assignments) {
   }).length;
 }
 
-function _renderFreigrezeCard(stats, sym) {
+function _renderFreigrenzeCard(stats, sym) {
   const net      = stats.taxableNet;   // steuerpflichtiger Gewinn nach km-Abzug
   const free     = Math.max(0, FREIGRENZE - net);
   const pct      = Math.min(100, (net / FREIGRENZE) * 100).toFixed(0);
@@ -323,5 +323,5 @@ function _renderFreigrezeCard(stats, sym) {
     </div>`;
 }
 
-function _fmt(v, sym) { return `${sym} ${(v ?? 0).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
-function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+const _fmt = formatCurrency;
+const _esc = escapeHtml;

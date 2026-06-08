@@ -4,6 +4,7 @@
 
 import { store } from '../services/store.js';
 import { showToast } from '../app.js';
+import { escapeHtml } from '../services/calculations.js';
 
 export function renderClients(container) {
   _render(container);
@@ -188,6 +189,4 @@ function _attachListeners(container) {
   });
 }
 
-function _esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+const _esc = escapeHtml;

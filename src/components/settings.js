@@ -12,7 +12,7 @@
 import { store } from '../services/store.js';
 import { supabase } from '../services/supabase.js';
 import { exportService } from '../services/export.js';
-import { showToast, navigate } from '../app.js';
+import { showToast, navigate, APP_VERSION } from '../app.js';
 import { marginalTaxRate, formatPercent } from '../services/calculations.js';
 
 export function renderSettings(container) {
@@ -240,7 +240,7 @@ function _render(container) {
       <div class="settings-card">
         <div class="settings-row">
           <div class="settings-row-label"><div class="label">Version</div></div>
-          <span class="settings-row-value">1.0.1</span>
+          <span class="settings-row-value">${APP_VERSION}</span>
         </div>
         <div class="settings-row">
           <div class="settings-row-label">
@@ -291,8 +291,7 @@ function _attachListeners(container) {
     // Nur den Grenzsteuersatz-Wert im DOM aktualisieren (kein vollständiger Rebuild)
     const marginalEl = container.querySelector('#s-marginal-display');
     if (marginalEl) {
-      const { marginalTaxRate } = _lazyCalc();
-      marginalEl.textContent = _formatPct(marginalTaxRate(store.settings.primaryIncomeGross ?? 46000));
+      marginalEl.textContent = formatPercent(marginalTaxRate(store.settings.primaryIncomeGross ?? 46000));
     }
   }
 
@@ -394,15 +393,6 @@ function _storageSize() {
     const data = localStorage.getItem('nebeneinkuenfte_v1') ?? '';
     return (new Blob([data]).size / 1024).toFixed(1);
   } catch { return '–'; }
-}
-
-// Lazy-import von calculations um zirkuläre Abhängigkeiten zu vermeiden
-function _lazyCalc() {
-  return { marginalTaxRate };
-}
-
-function _formatPct(rate) {
-  return `${(rate * 100).toFixed(1)} %`;
 }
 
 // Liest die E-Mail aus der gecachten Supabase-Session (synchron, kein await)
