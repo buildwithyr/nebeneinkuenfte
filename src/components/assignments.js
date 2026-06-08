@@ -3,7 +3,7 @@
  */
 
 import { store } from '../services/store.js';
-import { formatDate, formatCurrency, availableYears, filterByYear } from '../services/calculations.js';
+import { formatDate, formatCurrency, availableYears, filterByYear, escapeHtml } from '../services/calculations.js';
 import { showToast } from '../app.js';
 
 let filterYear = new Date().getFullYear();
@@ -350,6 +350,4 @@ function _getFormData(form) {
   };
 }
 
-function _esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+const _esc = escapeHtml;

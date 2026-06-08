@@ -5,6 +5,13 @@
 import { store } from './services/store.js';
 import { supabase } from './services/supabase.js';
 import { db } from './services/db.js';
+
+/**
+ * App-Version (Anzeige + Service-Worker-Cache).
+ * WICHTIG: Bei Änderung auch CACHE_VERSION in sw.js gleich halten –
+ * der Service Worker kann dieses Modul nicht importieren.
+ */
+export const APP_VERSION = '2.3.0';
 import { renderDashboard,   destroyDashboard }   from './components/dashboard.js';
 import { renderAssignments, destroyAssignments } from './components/assignments.js';
 import { renderClients,     destroyClients }     from './components/clients.js';
@@ -162,6 +169,9 @@ async function _initApp(user) {
   store.init();
 
   try {
+    // Erst offline angefallene Änderungen nachholen, dann Remote laden –
+    // sonst würden lokale Pending-Edits vom Remote-Stand überschrieben.
+    await db.flushPending();
     const remote = await db.loadAll();
 
     if (remote.clients.length > 0 || remote.assignments.length > 0) {
@@ -201,6 +211,8 @@ async function _initApp(user) {
 
 export async function syncFromSupabase() {
   try {
+    // Lokale Pending-Edits zuerst hochladen, damit sie nicht überschrieben werden.
+    await db.flushPending();
     const remote = await db.loadAll();
     // Remote ist nach der Initialisierung die maßgebliche Quelle –
     // immer übernehmen, damit auch Löschungen von anderen Geräten ankommen.

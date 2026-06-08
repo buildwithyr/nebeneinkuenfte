@@ -6,7 +6,7 @@
 import { store } from '../services/store.js';
 import {
   yearStats, monthlyStats, clientStats, availableYears,
-  formatCurrency, formatKm, formatPercent, formatDate, filterByYear,
+  formatCurrency, formatKm, formatPercent, formatDate, filterByYear, escapeHtml,
 } from '../services/calculations.js';
 
 let activeTab = 'year';
@@ -327,13 +327,8 @@ function _drawPieChart(assignments, clients, year) {
 const CHART_COLORS = ['#00B4D8','#06D6A0','#FFB703','#EF476F','#118AB2','#7B2FBE','#F4A261'];
 function _clientColor(idx) { return CHART_COLORS[idx % CHART_COLORS.length]; }
 
-function _fmt(v, sym) {
-  return `${sym} ${(v ?? 0).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function _esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+const _fmt = formatCurrency;
+const _esc = escapeHtml;
 
 // "Bezahlt markieren" Event-Delegation – wird bei renderAnalytics registriert und bei destroyAnalytics entfernt
 export function registerMarkPaidListener() {

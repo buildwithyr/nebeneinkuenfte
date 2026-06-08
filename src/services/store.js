@@ -216,11 +216,16 @@ class Store {
 
   applyRealtimeClient({ type, record }) {
     if (type === 'DELETE') {
+      const before = this._data.clients.length;
       this._data.clients = this._data.clients.filter(c => c.id !== record.id);
+      if (this._data.clients.length === before) return; // schon weg → Echo, ignorieren
     } else {
       const idx = this._data.clients.findIndex(c => c.id === record.id);
       if (idx >= 0) {
-        this._data.clients[idx] = { ...this._data.clients[idx], ...record };
+        const cur = this._data.clients[idx];
+        // Echo der eigenen Änderung? Inhaltlich identisch → kein Re-render.
+        if (cur.name === record.name && cur.note === record.note && cur.active === record.active) return;
+        this._data.clients[idx] = { ...cur, ...record };
       } else {
         this._data.clients.push(record);
       }
@@ -231,10 +236,14 @@ class Store {
 
   applyRealtimeAssignment({ type, record }) {
     if (type === 'DELETE') {
+      const before = this._data.assignments.length;
       this._data.assignments = this._data.assignments.filter(a => a.id !== record.id);
+      if (this._data.assignments.length === before) return; // schon weg → Echo, ignorieren
     } else {
       const idx = this._data.assignments.findIndex(a => a.id === record.id);
       if (idx >= 0) {
+        // Echo der eigenen Änderung? Gleicher updatedAt-Stand → kein Re-render.
+        if (this._data.assignments[idx].updatedAt === record.updatedAt) return;
         this._data.assignments[idx] = { ...this._data.assignments[idx], ...record };
       } else {
         this._data.assignments.push(_migrateAssignment(record));

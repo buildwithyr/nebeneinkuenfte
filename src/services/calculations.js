@@ -57,7 +57,7 @@ export const FREIGRENZE = 730;
 export const EINSCHLEIF_ENDE = 1460; // 2 × Freigrenze
 
 export function estimateSideIncomeTax(settings, sideIncomeNet) {
-  if (sideIncomeNet <= 0) return { taxAmount: 0, effectiveRate: 0, marginalRate: 0, freigrenzeFree: FREIGRENZE, freigreuzePct: 0 };
+  if (sideIncomeNet <= 0) return { taxAmount: 0, effectiveRate: 0, marginalRate: 0, freigrenzeFree: FREIGRENZE, freigrenzePct: 0 };
 
   const freigrenzeFree = Math.max(0, FREIGRENZE - sideIncomeNet);
   const freigrenzePct  = Math.min(1, sideIncomeNet / FREIGRENZE);
@@ -243,4 +243,13 @@ export function formatDateShort(dateStr) {
   return new Date(dateStr).toLocaleDateString('de-AT', {
     day: '2-digit', month: '2-digit',
   });
+}
+
+/** HTML-Escaping für Nutzereingaben (Auftraggeber-Namen, Notizen, Beschreibungen) */
+export function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
