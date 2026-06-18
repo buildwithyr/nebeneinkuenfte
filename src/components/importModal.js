@@ -20,8 +20,19 @@ import {
 import { detectLayout, buildMatrixRecords, recordKey } from '../services/sheetImport.js';
 
 const MAX_PREVIEW = 100;
-const YEARS = (() => { const now = new Date().getFullYear(); const a = []; for (let y = now; y >= 2023; y--) a.push(y); return a; })();
+const YEARS = (() => { const now = new Date().getFullYear(); const a = []; for (let y = now; y >= 2020; y--) a.push(y); return a; })();
 const DEFAULT_YEAR = new Date().getFullYear();
+
+/** Jahr aus einer "Jahr"-Spalte ableiten (erste 4-stellige Zahl), sonst aktuelles Jahr. */
+function defaultYearFromData(rows, yearCol) {
+  if (yearCol != null) {
+    for (const r of rows) {
+      const v = String(r[yearCol] ?? '').trim();
+      if (/^\d{4}$/.test(v)) return Number(v);
+    }
+  }
+  return DEFAULT_YEAR;
+}
 
 /** SheetJS (xlsx) erst bei Bedarf nachladen – hält den App-Start schlank. */
 function loadXLSX() {
@@ -113,6 +124,7 @@ export function openImportModal() {
       renderMatrix(layout);
     } else {
       mapping = mapping0;
+      normalYear = defaultYearFromData(rows, mapping.year); // aus "Jahr"-Spalte, sonst aktuelles Jahr
       renderNormalPreview();
     }
   }

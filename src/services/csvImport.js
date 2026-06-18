@@ -13,7 +13,7 @@
 
 // ---- Feldbeschriftungen für die Mapping-UI ----
 export const FIELD_LABELS = {
-  date:        'Datum *',
+  year:        'Jahr',
   client:      'Auftraggeber',
   description: 'Beschreibung',
   fee:         'Betrag (€) *',
@@ -21,12 +21,13 @@ export const FIELD_LABELS = {
   kmBillable:  'km verrechenbar',
   status:      'Status',
   note:        'Notiz',
-  paidDate:    'Zahlungsdatum',
+  date:        'Datum (optional)',
 };
 
 // ---- Synonyme für die automatische Spalten-Erkennung ----
 const FIELD_SYNONYMS = {
-  date:        ['datum', 'date', 'auftragstag', 'tag', 'leistungsdatum', 'auftragsdatum'],
+  year:        ['jahr', 'year', 'jahre'],
+  date:        ['datum', 'date', 'auftragstag', 'leistungsdatum', 'auftragsdatum'],
   client:      ['auftraggeber', 'firma', 'kunde', 'client', 'company', 'kunde/firma'],
   description: ['beschreibung', 'auftrag', 'projekt', 'titel', 'title', 'description', 'leistung', 'taetigkeit'],
   fee:         ['betrag', 'honorar', 'einnahme', 'einnahmen', 'amount', 'fee', 'summe', 'gage', 'umsatz', 'entgelt'],
@@ -201,8 +202,10 @@ export function rowToRecord(row, mapping, opts = {}) {
   const fee = parseAmount(feeRaw);
   const kmNum = kmRaw ? parseAmount(kmRaw) : 0;
 
+  const yearCell = mapping.year != null ? String(get('year')).trim() : '';
+  const yearFromCell = /^\d{4}$/.test(yearCell) ? Number(yearCell) : null;
   const parsedDate = mapping.date != null ? parseGermanOrIsoDate(get('date')) : null;
-  const year = opts.year ?? (parsedDate ? Number(parsedDate.slice(0, 4)) : null);
+  const year = opts.year ?? yearFromCell ?? (parsedDate ? Number(parsedDate.slice(0, 4)) : null);
   const date = year ? `${year}-01-01` : parsedDate;
 
   const rec = {

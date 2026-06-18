@@ -75,6 +75,34 @@ test('detectMapping: erkennt deutsche Header', () => {
   assert.equal(m.note, 6);
 });
 
+test('detectMapping: erkennt "Jahr"-Spalte (echte Datei nebeneinkuenfte_import_2024)', () => {
+  const m = detectMapping(['Jahr', 'Auftraggeber', 'Beschreibung', 'Betrag', 'Kilometer', 'Status', 'Notiz']);
+  assert.equal(m.year, 0);
+  assert.equal(m.client, 1);
+  assert.equal(m.fee, 3);
+  assert.equal(m.date, undefined); // "Jahr" wird NICHT als Datum fehlinterpretiert
+});
+
+test('analyzeRows: Datei mit Jahr-Spalte (kein Datum) → alles gültig, Jahr aus Spalte', () => {
+  const csv = [
+    'Jahr;Auftraggeber;Beschreibung;Betrag;Kilometer;Status;Notiz',
+    '2024;Whitebox;Fressnapf Februar;30.0;8;Bezahlt;',
+    '2024;Langl & Partner;BMW 1;65.0;100;Bezahlt;35€ + 0,35€/km',
+    '2024;Whitebox;Mystery Anrufe Porsche;60.0;0;Bezahlt;',
+    '2024;Whitebox;Mystery Anrufe Porsche;60.0;0;Bezahlt;', // Duplikat
+  ].join('\n');
+  const { headers, rows } = parseCSV(csv);
+  const mapping = detectMapping(headers);
+  const { items, counts } = analyzeRows(headers, rows, mapping); // ohne opts.year → Jahr aus Spalte
+  assert.equal(counts.invalid, 0);
+  assert.equal(counts.valid, 3);
+  assert.equal(counts.duplicate, 1);
+  assert.equal(items[0].rec.year, 2024);
+  assert.equal(items[0].rec.date, '2024-01-01');
+  assert.equal(items[0].rec.status, 'paid');
+  assert.equal(items[0].rec.fee, 30);
+});
+
 test('detectMapping: "km" greift NICHT die Spalte "km verrechenbar" ab', () => {
   const m = detectMapping(['Datum', 'Honorar (€)', 'km', 'km verrechenbar']);
   assert.equal(m.fee, 1);
