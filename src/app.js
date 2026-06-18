@@ -13,7 +13,7 @@ import { cooldownSeconds } from './services/authUtils.js';
  * WICHTIG: Bei Änderung auch CACHE_VERSION in sw.js gleich halten –
  * der Service Worker kann dieses Modul nicht importieren.
  */
-export const APP_VERSION = '2.4.0';
+export const APP_VERSION = '2.5.0';
 import { renderDashboard,   destroyDashboard }   from './components/dashboard.js';
 import { renderAssignments, destroyAssignments } from './components/assignments.js';
 import { renderClients,     destroyClients }     from './components/clients.js';
