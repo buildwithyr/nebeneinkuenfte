@@ -211,6 +211,18 @@ test('freibetragStatus: offene Aufträge zählen nicht als verdient', () => {
   assert.equal(fb.remaining, FREIGRENZE - 150);
 });
 
+test('freibetragStatus (Hybrid): hohe km → Anzeige bleibt Brutto, Warnung folgt Netto', () => {
+  // 800 € brutto, 300 verrechenbare km → Netto 674 € < 730 → keine Steuer/Warnung
+  const data = [{ fee: 800, km: 300, kmBillable: true, status: 'paid', date: '2026-01-10' }];
+  const fb = freibetragStatus(data, 2026, SETTINGS);
+  assert.equal(fb.earned, 800);            // Anzeige: Brutto-Honorar
+  assert.equal(fb.remaining, 0);           // 730 - 800
+  close(fb.taxableNet, 800 - 300 * 0.42);  // 674
+  assert.equal(fb.exceeded, 0);            // Netto < 730 → keine Überschreitung
+  assert.equal(fb.taxFree, true);          // keine Warnung (grün)
+  assert.equal(fb.inEinschleif, false);
+});
+
 test('freibetragStatus: über 730 € → offen 0, Überschreitung separat', () => {
   const data = [{ fee: 900, status: 'paid', date: '2026-01-10' }];
   const fb = freibetragStatus(data, 2026, SETTINGS);

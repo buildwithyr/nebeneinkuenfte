@@ -291,27 +291,29 @@ function _thisMonthCount(assignments) {
 }
 
 function _renderFreigrenzeCard(fb, sym) {
-  const { limit, earned, remaining, exceeded, pct, inEinschleif } = fb;
-  const isOver = exceeded > 0;
+  const { limit, earned, remaining, exceeded, pct, taxableNet, taxFree, inEinschleif } = fb;
 
+  // Anzeige (großer Wert + "offen") = Brutto-Honorar.
+  // Farbe/Warnung = steuerpflichtiges Netto (konsistent mit der Steuer-Karte).
   let statusText, barColor, valueClass, iconBg, cardClass;
-  if (!isOver) {
-    // Innerhalb der Grenze: zeige verbleibenden Spielraum
-    statusText = `${_fmt(earned, sym)} von ${FREIGRENZE} € · noch ${_fmt(remaining, sym)} frei`;
+  if (taxFree) {
+    statusText = earned <= limit
+      ? `${_fmt(earned, sym)} von ${limit} € · noch ${_fmt(remaining, sym)} frei`
+      : `${_fmt(earned, sym)} · nach km-Abzug unter ${limit} € → steuerfrei`;
     barColor   = 'var(--success)';
     valueClass = 'success';
     iconBg     = 'accent-bg';
     cardClass  = '';
   } else if (inEinschleif) {
-    // 730–1.460 €: Einschleifregelung
-    statusText = `Überschreitung ${_fmt(exceeded, sym)} · Einschleifregelung aktiv`;
+    // Netto 730–1.460 €: Einschleifregelung
+    statusText = `Steuerpfl. ${_fmt(taxableNet, sym)} · Überschreitung ${_fmt(exceeded, sym)} · Einschleifregelung`;
     barColor   = 'var(--warning)';
     valueClass = 'warning';
     iconBg     = 'warning-bg';
     cardClass  = 'warning-border';
   } else {
-    // über 1.460 €: voller Grenzsteuersatz
-    statusText = `Überschreitung ${_fmt(exceeded, sym)} · voller Grenzsteuersatz`;
+    // Netto über 1.460 €: voller Grenzsteuersatz
+    statusText = `Steuerpfl. ${_fmt(taxableNet, sym)} · Überschreitung ${_fmt(exceeded, sym)} · voller Grenzsteuersatz`;
     barColor   = 'var(--danger)';
     valueClass = 'danger';
     iconBg     = 'danger-bg';

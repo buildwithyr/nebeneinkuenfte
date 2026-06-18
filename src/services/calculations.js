@@ -155,27 +155,39 @@ export function isRealizedIncome(a) {
 }
 
 /**
- * Freibetrag-/Freigrenzen-Tracker fürs Dashboard.
+ * Freibetrag-/Freigrenzen-Tracker fürs Dashboard (Hybrid-Darstellung).
  *
- * "bereits verdient" = Summe der Honorare aus abgeschlossenen + bezahlten
- * Aufträgen des Jahres (offene, noch nicht durchgeführte Aufträge zählen nicht,
- * weil dabei noch kein Einkommen entstanden ist).
+ * Anzeige ("bereits verdient" / "offen"): Brutto-Honorare aus abgeschlossenen +
+ * bezahlten Aufträgen des Jahres – so wie der Nutzer seine Einnahmen kennt.
+ * Offene (noch nicht durchgeführte) Aufträge zählen nicht.
  *
- * Hinweis: § 41 Abs. 3 EStG ist genau genommen eine Freigrenze (bei
- * Überschreiten wird der Gesamtbetrag steuerpflichtig, nicht nur der
- * übersteigende Teil). Diese Karte zeigt den Auslastungs-Fortschritt der
- * 730-€-Grenze, damit sichtbar ist, wie viel des Jahres-Spielraums schon
- * verbraucht ist.
+ * Warn-/Steuer-Logik (taxFree / inEinschleif / fullRate / exceeded): basiert auf
+ * dem steuerpflichtigen NETTO (nach Kilometergeld-Abzug). § 41 Abs. 3 EStG
+ * bezieht die 730-€-Grenze auf den Gewinn, und auch die Steuer-Schätzung nutzt
+ * das Netto. Dadurch warnt die Karte nur dann vor Überschreitung, wenn
+ * tatsächlich Steuer anfällt – konsistent mit der Steuer-Karte.
  */
 export function freibetragStatus(assignments, year, settings) {
   const limit = FREIGRENZE;
   const relevant = filterByYear(assignments, year).filter(isRealizedIncome);
+
+  // Anzeige: bereits verdiente Brutto-Honorare
   const earned = relevant.reduce((s, a) => s + (Number(a.fee) || 0), 0);
   const remaining = Math.max(0, limit - earned);
-  const exceeded  = Math.max(0, earned - limit);
   const pct = Math.min(100, limit > 0 ? (earned / limit) * 100 : 0);
-  const inEinschleif = earned > limit && earned <= EINSCHLEIF_ENDE;
-  return { limit, earned, remaining, exceeded, pct, count: relevant.length, inEinschleif };
+
+  // Warnung/Steuer: steuerpflichtiges Netto (nach km-Abzug)
+  const { taxableNet } = calcTaxableIncome(relevant, settings);
+  const exceeded     = Math.max(0, taxableNet - limit);
+  const taxFree      = taxableNet <= limit;
+  const inEinschleif = taxableNet > limit && taxableNet <= EINSCHLEIF_ENDE;
+  const fullRate     = taxableNet > EINSCHLEIF_ENDE;
+
+  return {
+    limit, earned, remaining, pct,
+    taxableNet, exceeded, taxFree, inEinschleif, fullRate,
+    count: relevant.length,
+  };
 }
 
 // ---- Aggregationen ----
