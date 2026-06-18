@@ -1,0 +1,5 @@
+Datum;Auftraggeber;Beschreibung;Betrag;Kilometer;Status;Notiz
+12.03.2024;Whitebox;IQOS Store Wien;142,50;110;bezahlt;Beispielauftrag mit Komma-Betrag
+2024-05-02;Concertare;Mystery Call;30,00;0;abgeschlossen;ISO-Datumsformat
+12/07/2025;Market Mind;Online-Diskussion;25,00;;offen;Datum mit Schrägstrich, km leer
+03.09.2025;Langl & Partner;Testkauf Graz;48,00;62;bezahlt;

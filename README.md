@@ -30,6 +30,33 @@ git push origin main
 
 Die App ist so konfiguriert, dass sie direkt aus dem Repository-Root deployed werden kann.
 
+## Import alter Aufträge (CSV)
+
+Alte Aufträge (z. B. aus 2024/2025) lassen sich per CSV importieren:
+
+1. **Einstellungen → Export & Import → „CSV-Import (Aufträge)"** öffnen.
+2. CSV-Datei (UTF-8) wählen. Excel/Numbers: „Speichern unter → **CSV UTF-8**".
+   Eine Vorlage liegt im Projekt: [`import-template.csv`](import-template.csv).
+3. Die App **erkennt die Spalten automatisch** (Datum, Auftraggeber, Beschreibung,
+   Betrag, Kilometer, Status, Notiz). Nicht eindeutige Spalten lassen sich im
+   Assistenten **manuell zuordnen**.
+4. **Vorschau** prüfen: gültige / fehlerhafte / doppelte Zeilen werden gezählt
+   und markiert. Duplikate (gegen Bestand und innerhalb der Datei) werden
+   standardmäßig übersprungen.
+5. **„Import bestätigen"** → die Aufträge werden in Supabase gespeichert; das
+   Dashboard (inkl. 730-€-Freibetrag) wird neu berechnet.
+
+Erkannt werden:
+
+- **Beträge** mit deutschem Komma (`142,50`) und Punkt (`142.50`), inkl.
+  Tausendertrennzeichen und `€`.
+- **Datumsformate** `12.03.2025`, `2025-03-12`, `12/03/2025` (Tag zuerst).
+  Das **Jahr** wird automatisch aus dem Datum abgeleitet.
+- **Status** wie `offen`/`abgeschlossen`/`bezahlt` (auch englisch).
+
+> Der Import **fügt nur hinzu** und überschreibt keine bestehenden Daten.
+> `.xlsx` wird nicht direkt gelesen – bitte vorher als CSV (UTF-8) exportieren.
+
 ## Synchronisation (optional)
 
 Die App speichert Daten lokal (localStorage). Optional kann ein GitHub Gist zur Synchronisation zwischen Geräten genutzt werden:
