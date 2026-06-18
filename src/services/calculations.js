@@ -105,20 +105,52 @@ export function calcKmMoney(km, kmRate) {
 /**
  * Steuerpflichtiges Nettoeinkommen aus Nebentätigkeit
  * = Honorar - Kilometergeld
+ *
+ * Beträge werden defensiv mit Number() in Zahlen gewandelt, falls ein Wert
+ * (z.B. aus einem alten Datensatz) als Text vorliegt.
  */
 export function calcTaxableIncome(assignments, settings) {
   let totalFee = 0;
   let totalKmMoney = 0;
 
   for (const a of assignments) {
-    totalFee += a.fee ?? 0;
+    totalFee += Number(a.fee) || 0;
     if (a.kmBillable) {
-      totalKmMoney += calcKmMoney(a.km, settings.kmRate);
+      totalKmMoney += calcKmMoney(Number(a.km) || 0, settings.kmRate);
     }
   }
 
   const taxableNet = Math.max(0, totalFee - totalKmMoney);
   return { totalFee, totalKmMoney, taxableNet };
+}
+
+/** Aufträge, die als Einkommen realisiert sind (durchgeführt). */
+export function isRealizedIncome(a) {
+  return a.status === 'completed' || a.status === 'paid';
+}
+
+/**
+ * Freibetrag-/Freigrenzen-Tracker fürs Dashboard.
+ *
+ * "bereits verdient" = Summe der Honorare aus abgeschlossenen + bezahlten
+ * Aufträgen des Jahres (offene, noch nicht durchgeführte Aufträge zählen nicht,
+ * weil dabei noch kein Einkommen entstanden ist).
+ *
+ * Hinweis: § 41 Abs. 3 EStG ist genau genommen eine Freigrenze (bei
+ * Überschreiten wird der Gesamtbetrag steuerpflichtig, nicht nur der
+ * übersteigende Teil). Diese Karte zeigt den Auslastungs-Fortschritt der
+ * 730-€-Grenze, damit sichtbar ist, wie viel des Jahres-Spielraums schon
+ * verbraucht ist.
+ */
+export function freibetragStatus(assignments, year, settings) {
+  const limit = FREIGRENZE;
+  const relevant = filterByYear(assignments, year).filter(isRealizedIncome);
+  const earned = relevant.reduce((s, a) => s + (Number(a.fee) || 0), 0);
+  const remaining = Math.max(0, limit - earned);
+  const exceeded  = Math.max(0, earned - limit);
+  const pct = Math.min(100, limit > 0 ? (earned / limit) * 100 : 0);
+  const inEinschleif = earned > limit && earned <= EINSCHLEIF_ENDE;
+  return { limit, earned, remaining, exceeded, pct, count: relevant.length, inEinschleif };
 }
 
 // ---- Aggregationen ----
@@ -163,12 +195,20 @@ export function monthlyStats(assignments, year) {
 /** Jahres-Statistiken */
 export function yearStats(assignments, year, settings) {
   const aYear = filterByYear(assignments, year);
-  const { totalFee, totalKmMoney, taxableNet } = calcTaxableIncome(aYear, settings);
+
+  // Honorar-/Kilometer-Übersicht: alle Aufträge des Jahres
+  const totalFee   = aYear.reduce((s, a) => s + (Number(a.fee) || 0), 0);
+  const totalKm    = aYear.reduce((s, a) => s + (Number(a.km) || 0), 0);
+  const billableKm = aYear.reduce((s, a) => s + (a.kmBillable ? (Number(a.km) || 0) : 0), 0);
+
+  // Steuer-/Freigrenzen-Sicht: nur realisierte (abgeschlossene + bezahlte)
+  // Einkünfte. Offene, noch nicht durchgeführte Aufträge sind kein Einkommen.
+  const realized = aYear.filter(isRealizedIncome);
+  const { totalKmMoney, taxableNet } = calcTaxableIncome(realized, settings);
   const tax = estimateSideIncomeTax(settings, taxableNet);
-  const totalKm = aYear.reduce((s, a) => s + (a.km ?? 0), 0);
-  const billableKm = aYear.reduce((s, a) => s + (a.kmBillable ? (a.km ?? 0) : 0), 0);
-  const unpaidFee = aYear.filter(a => a.status === 'completed').reduce((s, a) => s + (a.fee ?? 0), 0);
-  const reserve = totalFee * (settings.reserveRate ?? 0.40);
+
+  const unpaidFee = aYear.filter(a => a.status === 'completed').reduce((s, a) => s + (Number(a.fee) || 0), 0);
+  const reserve = taxableNet * (settings.reserveRate ?? 0.40);
 
   return {
     year,

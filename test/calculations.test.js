@@ -16,6 +16,8 @@ import {
   estimateSideIncomeTax,
   calcKmMoney,
   calcTaxableIncome,
+  freibetragStatus,
+  yearStats,
   FREIGRENZE,
   EINSCHLEIF_ENDE,
 } from '../src/services/calculations.js';
@@ -150,4 +152,74 @@ test('calcTaxableIncome: taxableNet nie negativ', () => {
   const settings = { kmRate: 0.42 };
   const assignments = [{ fee: 10, km: 100, kmBillable: true }]; // kmGeld 42 > Honorar 10
   assert.equal(calcTaxableIncome(assignments, settings).taxableNet, 0);
+});
+
+test('calcTaxableIncome: Honorar als Text wird wie Zahl behandelt (keine Konkatenation)', () => {
+  const settings = { kmRate: 0.42 };
+  const assignments = [{ fee: '32', km: '10', kmBillable: false }, { fee: '8', km: 0, kmBillable: false }];
+  assert.equal(calcTaxableIncome(assignments, settings).totalFee, 40); // nicht "328"
+});
+
+// ---- freibetragStatus (Dashboard-Bug: 142 € verdient → 588 € offen) ----
+
+const SETTINGS = { kmRate: 0.42, reserveRate: 0.40, useAutomaticTaxRate: true, primaryIncomeGross: 46000 };
+
+// Reale Datenlage aus Supabase: 8 bezahlte Aufträge 2026, Summe 142 €,
+// davon 305 verrechenbare km. Der km-Abzug darf den Freibetrag-Fortschritt NICHT mindern.
+const REAL_2026 = [
+  { fee: 32, km: 110, kmBillable: true,  status: 'paid', date: '2026-03-02' },
+  { fee: 32, km: 90,  kmBillable: true,  status: 'paid', date: '2026-03-02' },
+  { fee: 30, km: 40,  kmBillable: true,  status: 'paid', date: '2026-03-03' },
+  { fee: 10, km: 50,  kmBillable: true,  status: 'paid', date: '2026-04-04' },
+  { fee: 10, km: 15,  kmBillable: true,  status: 'paid', date: '2026-04-05' },
+  { fee: 10, km: 0,   kmBillable: false, status: 'paid', date: '2026-05-29' },
+  { fee: 10, km: 0,   kmBillable: false, status: 'paid', date: '2026-05-29' },
+  { fee: 8,  km: 0,   kmBillable: false, status: 'paid', date: '2026-05-29' },
+];
+
+test('freibetragStatus: 142 € verdient → 588 € offen (Bugfix)', () => {
+  const fb = freibetragStatus(REAL_2026, 2026, SETTINGS);
+  assert.equal(fb.earned, 142);
+  assert.equal(fb.remaining, 588);
+  assert.equal(fb.exceeded, 0);
+});
+
+test('freibetragStatus: offene Aufträge zählen nicht als verdient', () => {
+  const data = [
+    { fee: 100, status: 'paid',      date: '2026-01-10' },
+    { fee: 50,  status: 'completed', date: '2026-02-10' },
+    { fee: 999, status: 'open',      date: '2026-03-10' }, // noch nicht durchgeführt
+  ];
+  const fb = freibetragStatus(data, 2026, SETTINGS);
+  assert.equal(fb.earned, 150);
+  assert.equal(fb.remaining, FREIGRENZE - 150);
+});
+
+test('freibetragStatus: über 730 € → offen 0, Überschreitung separat', () => {
+  const data = [{ fee: 900, status: 'paid', date: '2026-01-10' }];
+  const fb = freibetragStatus(data, 2026, SETTINGS);
+  assert.equal(fb.remaining, 0);
+  assert.equal(fb.exceeded, 900 - FREIGRENZE);
+  assert.ok(fb.inEinschleif); // 730–1460
+});
+
+test('freibetragStatus: nur das gewählte Jahr zählt', () => {
+  const data = [
+    { fee: 100, status: 'paid', date: '2026-01-10' },
+    { fee: 500, status: 'paid', date: '2025-12-31' },
+  ];
+  assert.equal(freibetragStatus(data, 2026, SETTINGS).earned, 100);
+  assert.equal(freibetragStatus(data, 2025, SETTINGS).earned, 500);
+});
+
+// ---- yearStats: Steuer nur auf realisierte Einkünfte ----
+
+test('yearStats: offene Aufträge erhöhen die Steuerbasis nicht', () => {
+  const data = [
+    { fee: 600, km: 0, kmBillable: false, status: 'paid', date: '2026-01-10' },
+    { fee: 800, km: 0, kmBillable: false, status: 'open', date: '2026-02-10' },
+  ];
+  const s = yearStats(data, 2026, SETTINGS);
+  assert.equal(s.totalFee, 1400);   // Übersicht: alle Aufträge
+  assert.equal(s.taxableNet, 600);  // Steuer: nur realisierte
 });
