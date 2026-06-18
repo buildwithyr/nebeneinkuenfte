@@ -288,11 +288,13 @@ export function openImportModal() {
   function normalExistingKeys() {
     const nameById = new Map(store.clients.map(c => [c.id, c.name]));
     return new Set(store.assignments.map(a =>
-      dedupeKey({ date: a.date, clientName: nameById.get(a.clientId) ?? '', fee: a.fee ?? 0 })));
+      dedupeKey({ clientName: nameById.get(a.clientId) ?? '', description: a.description ?? '', fee: a.fee ?? 0 })));
   }
 
+  let normalYear = DEFAULT_YEAR;
+
   function renderNormalPreview() {
-    const { items, counts } = analyzeRows(headers, rows, mapping, normalExistingKeys());
+    const { items, counts } = analyzeRows(headers, rows, mapping, normalExistingKeys(), { year: normalYear });
 
     const headerOpts = (sel) => headers.map((h, i) =>
       `<option value="${i}" ${sel === i ? 'selected' : ''}>${escapeHtml(h)}</option>`).join('');
@@ -302,6 +304,7 @@ export function openImportModal() {
           <option value="">(nicht zuordnen)</option>${headerOpts(mapping[field])}
         </select>
       </label>`).join('');
+    const yearOpts = YEARS.map(y => `<option value="${y}" ${y === normalYear ? 'selected' : ''}>${y}</option>`).join('');
 
     const tableRows = items.slice(0, MAX_PREVIEW).map(it => {
       const cls = it.kind === 'invalid' ? 'import-row-invalid' : it.kind === 'duplicate' ? 'import-row-duplicate' : '';
@@ -309,17 +312,22 @@ export function openImportModal() {
         : it.kind === 'duplicate' ? '<span class="badge badge-warning">Duplikat</span>'
         : '<span class="badge badge-success">OK</span>';
       const r = it.rec;
-      const detail = it.errors.length ? escapeHtml(it.errors.join('; ')) : (r.year ?? '');
+      const detail = it.errors.length ? escapeHtml(it.errors.join('; ')) : '';
       return `<tr class="${cls}">
-        <td>${badge}</td><td>${escapeHtml(r.date ?? it.dateRaw)}</td><td>${escapeHtml(r.clientName)}</td>
+        <td>${badge}</td><td>${r.year ?? ''}</td><td>${escapeHtml(r.clientName)}</td>
         <td>${escapeHtml(r.description)}</td><td style="text-align:right">${r.fee != null ? r.fee.toFixed(2) : escapeHtml(it.feeRaw)}</td>
         <td style="text-align:right">${r.km || 0}</td><td>${escapeHtml(r.status)}</td><td>${detail}</td>
       </tr>`;
     }).join('');
 
     body.innerHTML = `
-      <p class="login-subtitle">Spalten-Zuordnung prüfen (Pflichtfelder *).</p>
-      <div class="import-map-grid">${mapGrid}</div>
+      <p class="login-subtitle">Spalten-Zuordnung prüfen (Pflichtfeld: Betrag). Das Datum ist irrelevant – wähle nur das Jahr.</p>
+      <div class="import-controls">
+        <label>Jahr (für alle)
+          <select class="form-control" id="imp-year">${yearOpts}</select>
+        </label>
+      </div>
+      <div class="import-map-grid" style="margin-top:var(--space-3)">${mapGrid}</div>
       <div class="import-counts" style="margin:var(--space-3) 0">
         <span class="badge badge-success">${counts.valid} gültig</span>
         <span class="badge badge-warning">${counts.duplicate} Duplikate</span>
@@ -328,8 +336,8 @@ export function openImportModal() {
       </div>
       <div class="import-preview">
         <table class="import-table">
-          <thead><tr><th>Status</th><th>Datum</th><th>Auftraggeber</th><th>Beschreibung</th>
-          <th style="text-align:right">Betrag</th><th style="text-align:right">km</th><th>Status</th><th>Jahr / Hinweis</th></tr></thead>
+          <thead><tr><th>Status</th><th>Jahr</th><th>Auftraggeber</th><th>Beschreibung</th>
+          <th style="text-align:right">Betrag</th><th style="text-align:right">km</th><th>Status</th><th>Hinweis</th></tr></thead>
           <tbody>${tableRows}</tbody>
         </table>
       </div>
@@ -344,6 +352,10 @@ export function openImportModal() {
         <button type="button" class="btn btn-primary" id="imp-confirm">Import bestätigen</button>
       </div>`;
 
+    body.querySelector('#imp-year').addEventListener('change', (e) => {
+      normalYear = Number(e.target.value);
+      renderNormalPreview();
+    });
     body.querySelectorAll('[data-map-field]').forEach(sel => {
       sel.addEventListener('change', () => {
         const field = sel.dataset.mapField;

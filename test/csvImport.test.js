@@ -95,10 +95,10 @@ test('parseCSV: Semikolon-Delimiter + BOM + Quotes', () => {
 
 // ---- End-to-end: analyzeRows (2024/2025, Komma, leere Felder, Duplikate) ----
 
-function analyzeCsv(text, existingKeys) {
+function analyzeCsv(text, existingKeys, opts) {
   const { headers, rows } = parseCSV(text);
   const mapping = detectMapping(headers);
-  return analyzeRows(headers, rows, mapping, existingKeys);
+  return analyzeRows(headers, rows, mapping, existingKeys, opts);
 }
 
 test('analyzeRows: 2024- und 2025-Daten, Komma-Beträge, Jahr aus Datum', () => {
@@ -116,18 +116,29 @@ test('analyzeRows: 2024- und 2025-Daten, Komma-Beträge, Jahr aus Datum', () => 
   assert.equal(items[1].rec.year, 2025);
 });
 
-test('analyzeRows: leere Pflichtfelder → invalid mit Begründung', () => {
+test('analyzeRows: Datum ist irrelevant – nur Betrag ist Pflicht', () => {
+  const csv = [
+    'Auftraggeber;Beschreibung;Betrag',
+    'Concertare;Porsche Graz;100,00',  // KEINE Datumsspalte → trotzdem gültig
+    'Whitebox;Mystery;',               // Betrag fehlt → invalid
+    'Whitebox;Foo;abc',                // Betrag ungültig → invalid
+  ].join('\n');
+  const { counts, items } = analyzeCsv(csv, new Set(), { year: 2025 });
+  assert.equal(counts.valid, 1);
+  assert.equal(counts.invalid, 2);
+  assert.equal(items[0].rec.year, 2025);
+  assert.equal(items[0].rec.date, '2025-01-01'); // auf 1.1. des gewählten Jahres normiert
+  assert.ok(items[1].errors.some(e => e.includes('Betrag')));
+});
+
+test('analyzeRows: gewähltes Jahr überschreibt vorhandene Datumsspalte', () => {
   const csv = [
     'Datum;Auftraggeber;Betrag',
-    ';Whitebox;50,00',        // Datum fehlt
-    '12.03.2024;Whitebox;',   // Betrag fehlt
-    'foo;Whitebox;abc',       // beide ungültig
+    '12.03.2024;Whitebox;40,00',
   ].join('\n');
-  const { counts, items } = analyzeCsv(csv);
-  assert.equal(counts.valid, 0);
-  assert.equal(counts.invalid, 3);
-  assert.ok(items[0].errors.some(e => e.includes('Datum')));
-  assert.ok(items[1].errors.some(e => e.includes('Betrag')));
+  const { items } = analyzeCsv(csv, new Set(), { year: 2026 });
+  assert.equal(items[0].rec.year, 2026);
+  assert.equal(items[0].rec.date, '2026-01-01');
 });
 
 test('analyzeRows: Duplikate innerhalb der Datei und gegen Bestand', () => {

@@ -10,7 +10,7 @@
  */
 
 // WICHTIG: Gleich halten mit APP_VERSION in src/app.js (SW kann nicht importieren).
-const CACHE_VERSION = 'v2.6.0';
+const CACHE_VERSION = 'v2.6.1';
 const STATIC_CACHE  = `nebeneinkuenfte-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `nebeneinkuenfte-dynamic-${CACHE_VERSION}`;
 

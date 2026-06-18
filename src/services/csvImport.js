@@ -184,20 +184,30 @@ export function detectMapping(headers) {
   return mapping;
 }
 
-/** Eine CSV-Zeile in einen Tracker-Datensatz + Fehlerliste umwandeln. */
-export function rowToRecord(row, mapping) {
+/**
+ * Eine CSV-Zeile in einen Tracker-Datensatz + Fehlerliste umwandeln.
+ *
+ * Datum ist BEWUSST optional/irrelevant: das Jahr kommt aus `opts.year`
+ * (Jahr-Auswahl im Assistenten); fehlt es, wird – falls vorhanden – das Jahr
+ * aus einer Datumsspalte abgeleitet. Das gespeicherte Datum wird immer auf
+ * den 1.1. des Jahres normiert. Eine fehlende/ungültige Datumsspalte ist KEIN
+ * Fehler.
+ */
+export function rowToRecord(row, mapping, opts = {}) {
   const get = (field) => (mapping[field] != null ? (row[mapping[field]] ?? '') : '');
-  const dateRaw = String(get('date')).trim();
-  const feeRaw  = String(get('fee')).trim();
-  const kmRaw   = String(get('km')).trim();
+  const feeRaw = String(get('fee')).trim();
+  const kmRaw  = String(get('km')).trim();
 
-  const date = parseGermanOrIsoDate(dateRaw);
-  const fee  = parseAmount(feeRaw);
+  const fee = parseAmount(feeRaw);
   const kmNum = kmRaw ? parseAmount(kmRaw) : 0;
+
+  const parsedDate = mapping.date != null ? parseGermanOrIsoDate(get('date')) : null;
+  const year = opts.year ?? (parsedDate ? Number(parsedDate.slice(0, 4)) : null);
+  const date = year ? `${year}-01-01` : parsedDate;
 
   const rec = {
     date,
-    year: date ? Number(date.slice(0, 4)) : null,
+    year,
     clientName: String(get('client')).trim(),
     description: String(get('description')).trim(),
     fee,
@@ -210,29 +220,29 @@ export function rowToRecord(row, mapping) {
   };
 
   const errors = [];
-  if (!dateRaw) errors.push('Datum fehlt');
-  else if (!date) errors.push(`Datum ungültig: "${dateRaw}"`);
   if (!feeRaw) errors.push('Betrag fehlt');
   else if (fee == null) errors.push(`Betrag ungültig: "${feeRaw}"`);
   else if (fee < 0) errors.push('Betrag negativ');
 
-  return { rec, errors, dateRaw, feeRaw };
+  return { rec, errors, dateRaw: mapping.date != null ? String(get('date')).trim() : '', feeRaw };
 }
 
-/** Dedupe-Schlüssel: Datum + Auftraggeber + Betrag. */
+/** Dedupe-Schlüssel: Auftraggeber + Beschreibung + Betrag (datums-unabhängig). */
 export function dedupeKey(rec) {
-  const fee = rec.fee != null ? rec.fee.toFixed(2) : '';
-  return `${rec.date ?? ''}|${(rec.clientName ?? '').toLowerCase()}|${fee}`;
+  const amt = parseAmount(rec.fee);
+  const norm = (s) => String(s ?? '').trim().toLowerCase();
+  return `${norm(rec.clientName)}|${norm(rec.description)}|${amt != null ? amt.toFixed(2) : ''}`;
 }
 
 /**
  * Zeilen analysieren: jede Zeile als valid | invalid | duplicate einstufen.
  * @param existingKeys Set bestehender dedupeKeys (gegen Bestand)
+ * @param opts { year } – Jahr für alle Zeilen (Datum wird ignoriert)
  */
-export function analyzeRows(headers, rows, mapping, existingKeys = new Set()) {
+export function analyzeRows(headers, rows, mapping, existingKeys = new Set(), opts = {}) {
   const seen = new Set();
   const items = rows.map((row, idx) => {
-    const r = rowToRecord(row, mapping);
+    const r = rowToRecord(row, mapping, opts);
     let kind;
     if (r.errors.length) {
       kind = 'invalid';
