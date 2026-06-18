@@ -6,6 +6,7 @@
 import { store } from '../services/store.js';
 import {
   yearStats, monthlyStats, clientStats, availableYears, filterByYear,
+  freibetragStatus,
   formatCurrency, formatKm, formatPercent, formatDate, escapeHtml,
   FREIGRENZE, EINSCHLEIF_ENDE,
 } from '../services/calculations.js';
@@ -106,7 +107,7 @@ function _render(container) {
         <div class="metric-sub">${formatPercent(stats.tax.effectiveRate)} eff. Rate</div>
       </div>
 
-      ${_renderFreigrenzeCard(stats, sym)}
+      ${_renderFreigrenzeCard(freibetragStatus(assignments, selectedYear, settings), sym)}
 
       <div class="metric-card warning-border">
         <div class="metric-icon warning-bg">🏦</div>
@@ -289,36 +290,44 @@ function _thisMonthCount(assignments) {
   }).length;
 }
 
-function _renderFreigrenzeCard(stats, sym) {
-  const net      = stats.taxableNet;   // steuerpflichtiger Gewinn nach km-Abzug
-  const free     = Math.max(0, FREIGRENZE - net);
-  const pct      = Math.min(100, (net / FREIGRENZE) * 100).toFixed(0);
-  const isOver   = net > FREIGRENZE;
-  const isEinschleif = net > FREIGRENZE && net <= EINSCHLEIF_ENDE;
+function _renderFreigrenzeCard(fb, sym) {
+  const { limit, earned, remaining, exceeded, pct, taxableNet, taxFree, inEinschleif } = fb;
 
-  let statusText, barColor, cardClass;
-  if (net <= FREIGRENZE) {
-    statusText = `Noch ${_fmt(free, sym)} frei`;
+  // Anzeige (großer Wert + "offen") = Brutto-Honorar.
+  // Farbe/Warnung = steuerpflichtiges Netto (konsistent mit der Steuer-Karte).
+  let statusText, barColor, valueClass, iconBg, cardClass;
+  if (taxFree) {
+    statusText = earned <= limit
+      ? `${_fmt(earned, sym)} von ${limit} € · noch ${_fmt(remaining, sym)} frei`
+      : `${_fmt(earned, sym)} · nach km-Abzug unter ${limit} € → steuerfrei`;
     barColor   = 'var(--success)';
+    valueClass = 'success';
+    iconBg     = 'accent-bg';
     cardClass  = '';
-  } else if (isEinschleif) {
-    statusText = `Einschleifregelung aktiv`;
+  } else if (inEinschleif) {
+    // Netto 730–1.460 €: Einschleifregelung
+    statusText = `Steuerpfl. ${_fmt(taxableNet, sym)} · Überschreitung ${_fmt(exceeded, sym)} · Einschleifregelung`;
     barColor   = 'var(--warning)';
+    valueClass = 'warning';
+    iconBg     = 'warning-bg';
     cardClass  = 'warning-border';
   } else {
-    statusText = `Voller Grenzsteuersatz`;
+    // Netto über 1.460 €: voller Grenzsteuersatz
+    statusText = `Steuerpfl. ${_fmt(taxableNet, sym)} · Überschreitung ${_fmt(exceeded, sym)} · voller Grenzsteuersatz`;
     barColor   = 'var(--danger)';
+    valueClass = 'danger';
+    iconBg     = 'danger-bg';
     cardClass  = 'danger-border';
   }
 
   return `
     <div class="metric-card ${cardClass}">
-      <div class="metric-icon ${net <= FREIGRENZE ? 'accent-bg' : isEinschleif ? 'warning-bg' : 'danger-bg'}">🎯</div>
+      <div class="metric-icon ${iconBg}">🎯</div>
       <div class="metric-label">Freigrenze ${FREIGRENZE} €*</div>
-      <div class="metric-value ${net <= FREIGRENZE ? 'success' : isEinschleif ? 'warning' : 'danger'}">${_fmt(net, sym)}</div>
+      <div class="metric-value ${valueClass}">${_fmt(earned, sym)}</div>
       <div class="metric-sub">${statusText}</div>
       <div style="margin-top:6px;height:4px;border-radius:2px;background:var(--border);overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:2px;transition:width 0.4s"></div>
+        <div style="height:100%;width:${pct.toFixed(0)}%;background:${barColor};border-radius:2px;transition:width 0.4s"></div>
       </div>
     </div>`;
 }

@@ -1,2 +1,7 @@
 node_modules/
 package-lock.json
+
+# Lokale Umgebungs-/Geheimdateien – niemals committen
+.env
+.env.local
+.env.*.local

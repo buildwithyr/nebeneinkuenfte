@@ -12,6 +12,7 @@
 import { store } from '../services/store.js';
 import { supabase } from '../services/supabase.js';
 import { exportService } from '../services/export.js';
+import { openImportModal } from './importModal.js';
 import { showToast, navigate, APP_VERSION } from '../app.js';
 import { marginalTaxRate, formatPercent } from '../services/calculations.js';
 
@@ -195,6 +196,14 @@ function _render(container) {
 
         <div class="settings-row">
           <div class="settings-row-label">
+            <div class="label">CSV-Import (Aufträge)</div>
+            <div class="sub">Alte Aufträge (z.B. 2024/2025) aus CSV – mit Vorschau, fügt nur hinzu</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="s-import-csv">⬆ CSV</button>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-label">
             <div class="label">JSON-Import</div>
             <div class="sub">Backup wiederherstellen – überschreibt alle Daten</div>
           </div>
@@ -348,6 +357,10 @@ function _attachListeners(container) {
   container.querySelector('#s-export-csv-all')?.addEventListener('click', () => {
     exportService.exportCSV(null);
     showToast('CSV (alle Jahre) heruntergeladen', 'success');
+  });
+
+  container.querySelector('#s-import-csv')?.addEventListener('click', () => {
+    openImportModal();
   });
 
   container.querySelector('#s-import-json')?.addEventListener('click', () => {

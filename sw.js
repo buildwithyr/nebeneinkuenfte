@@ -10,7 +10,7 @@
  */
 
 // WICHTIG: Gleich halten mit APP_VERSION in src/app.js (SW kann nicht importieren).
-const CACHE_VERSION = 'v2.3.0';
+const CACHE_VERSION = 'v2.6.2';
 const STATIC_CACHE  = `nebeneinkuenfte-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `nebeneinkuenfte-dynamic-${CACHE_VERSION}`;
 
@@ -21,12 +21,17 @@ const LOCAL_ASSETS = [
   'manifest.json',
   'src/styles/main.css',
   'src/app.js',
+  'src/config.js',
   'src/services/store.js',
   'src/services/storage.js',
   'src/services/calculations.js',
   'src/services/export.js',
   'src/services/supabase.js',
+  'src/services/authUtils.js',
+  'src/services/csvImport.js',
+  'src/services/sheetImport.js',
   'src/services/db.js',
+  'src/components/importModal.js',
   'src/components/dashboard.js',
   'src/components/assignments.js',
   'src/components/clients.js',

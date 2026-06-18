@@ -16,6 +16,8 @@ import {
   estimateSideIncomeTax,
   calcKmMoney,
   calcTaxableIncome,
+  freibetragStatus,
+  yearStats,
   FREIGRENZE,
   EINSCHLEIF_ENDE,
 } from '../src/services/calculations.js';
@@ -32,22 +34,22 @@ test('calcAustrianTax: 0 € → keine Steuer', () => {
   assert.equal(calcAustrianTax(0), 0);
 });
 
-test('calcAustrianTax: bis zur Freibetragsgrenze 12.816 € steuerfrei', () => {
-  assert.equal(calcAustrianTax(12816), 0);
+test('calcAustrianTax: bis zur Freibetragsgrenze 13.539 € steuerfrei (2026)', () => {
+  assert.equal(calcAustrianTax(13539), 0);
 });
 
-test('calcAustrianTax: an Stufengrenze 20.818 €', () => {
-  // 20% auf (20818 - 12816) = 8002
-  close(calcAustrianTax(20818), 8002 * 0.20);
+test('calcAustrianTax: an Stufengrenze 21.992 € (2026)', () => {
+  // 20% auf (21992 - 13539) = 8453
+  close(calcAustrianTax(21992), 8453 * 0.20);
 });
 
-test('calcAustrianTax: an Stufengrenze 34.513 €', () => {
-  // 20% auf 8002 + 30% auf (34513 - 20818)
-  close(calcAustrianTax(34513), 8002 * 0.20 + 13695 * 0.30);
+test('calcAustrianTax: an Stufengrenze 36.458 € (2026)', () => {
+  // 20% auf 8453 + 30% auf (36458 - 21992)
+  close(calcAustrianTax(36458), 8453 * 0.20 + 14466 * 0.30);
 });
 
-test('calcAustrianTax: Progression bei 46.000 €', () => {
-  const expected = 8002 * 0.20 + 13695 * 0.30 + (46000 - 34513) * 0.40;
+test('calcAustrianTax: Progression bei 46.000 € (2026)', () => {
+  const expected = 8453 * 0.20 + 14466 * 0.30 + (46000 - 36458) * 0.40;
   close(calcAustrianTax(46000), expected);
 });
 
@@ -57,14 +59,30 @@ test('calcAustrianTax: nie negativ', () => {
 
 // ---- marginalTaxRate ----
 
-test('marginalTaxRate: pro Tarifstufe', () => {
-  assert.equal(marginalTaxRate(0), 0.00);
-  assert.equal(marginalTaxRate(15000), 0.20);
-  assert.equal(marginalTaxRate(25000), 0.30);
-  assert.equal(marginalTaxRate(46000), 0.40);
-  assert.equal(marginalTaxRate(80000), 0.48);
-  assert.equal(marginalTaxRate(500000), 0.50);
-  assert.equal(marginalTaxRate(2000000), 0.55);
+test('marginalTaxRate: Tarifstufen Österreich 2026', () => {
+  assert.equal(marginalTaxRate(13539), 0.00);
+  assert.equal(marginalTaxRate(13540), 0.20);
+
+  assert.equal(marginalTaxRate(21992), 0.20);
+  assert.equal(marginalTaxRate(21993), 0.30);
+
+  assert.equal(marginalTaxRate(36458), 0.30);
+  assert.equal(marginalTaxRate(36459), 0.40);
+
+  assert.equal(marginalTaxRate(70365), 0.40);
+  assert.equal(marginalTaxRate(70366), 0.48);
+
+  assert.equal(marginalTaxRate(104859), 0.48);
+  assert.equal(marginalTaxRate(104860), 0.50);
+
+  assert.equal(marginalTaxRate(1000000), 0.50);
+  assert.equal(marginalTaxRate(1000001), 0.55);
+});
+
+test('taxBracketsForYear: künftige Jahre nutzen das jüngste hinterlegte Jahr', () => {
+  // Solange 2027 nicht gepflegt ist, gelten die 2026er-Stufen weiter.
+  assert.equal(marginalTaxRate(46000, 2027), marginalTaxRate(46000, 2026));
+  assert.equal(calcAustrianTax(46000, 2099), calcAustrianTax(46000, 2026));
 });
 
 // ---- estimateSideIncomeTax: Freigrenze & Einschleifregelung ----
@@ -150,4 +168,86 @@ test('calcTaxableIncome: taxableNet nie negativ', () => {
   const settings = { kmRate: 0.42 };
   const assignments = [{ fee: 10, km: 100, kmBillable: true }]; // kmGeld 42 > Honorar 10
   assert.equal(calcTaxableIncome(assignments, settings).taxableNet, 0);
+});
+
+test('calcTaxableIncome: Honorar als Text wird wie Zahl behandelt (keine Konkatenation)', () => {
+  const settings = { kmRate: 0.42 };
+  const assignments = [{ fee: '32', km: '10', kmBillable: false }, { fee: '8', km: 0, kmBillable: false }];
+  assert.equal(calcTaxableIncome(assignments, settings).totalFee, 40); // nicht "328"
+});
+
+// ---- freibetragStatus (Dashboard-Bug: 142 € verdient → 588 € offen) ----
+
+const SETTINGS = { kmRate: 0.42, reserveRate: 0.40, useAutomaticTaxRate: true, primaryIncomeGross: 46000 };
+
+// Reale Datenlage aus Supabase: 8 bezahlte Aufträge 2026, Summe 142 €,
+// davon 305 verrechenbare km. Der km-Abzug darf den Freibetrag-Fortschritt NICHT mindern.
+const REAL_2026 = [
+  { fee: 32, km: 110, kmBillable: true,  status: 'paid', date: '2026-03-02' },
+  { fee: 32, km: 90,  kmBillable: true,  status: 'paid', date: '2026-03-02' },
+  { fee: 30, km: 40,  kmBillable: true,  status: 'paid', date: '2026-03-03' },
+  { fee: 10, km: 50,  kmBillable: true,  status: 'paid', date: '2026-04-04' },
+  { fee: 10, km: 15,  kmBillable: true,  status: 'paid', date: '2026-04-05' },
+  { fee: 10, km: 0,   kmBillable: false, status: 'paid', date: '2026-05-29' },
+  { fee: 10, km: 0,   kmBillable: false, status: 'paid', date: '2026-05-29' },
+  { fee: 8,  km: 0,   kmBillable: false, status: 'paid', date: '2026-05-29' },
+];
+
+test('freibetragStatus: 142 € verdient → 588 € offen (Bugfix)', () => {
+  const fb = freibetragStatus(REAL_2026, 2026, SETTINGS);
+  assert.equal(fb.earned, 142);
+  assert.equal(fb.remaining, 588);
+  assert.equal(fb.exceeded, 0);
+});
+
+test('freibetragStatus: offene Aufträge zählen nicht als verdient', () => {
+  const data = [
+    { fee: 100, status: 'paid',      date: '2026-01-10' },
+    { fee: 50,  status: 'completed', date: '2026-02-10' },
+    { fee: 999, status: 'open',      date: '2026-03-10' }, // noch nicht durchgeführt
+  ];
+  const fb = freibetragStatus(data, 2026, SETTINGS);
+  assert.equal(fb.earned, 150);
+  assert.equal(fb.remaining, FREIGRENZE - 150);
+});
+
+test('freibetragStatus (Hybrid): hohe km → Anzeige bleibt Brutto, Warnung folgt Netto', () => {
+  // 800 € brutto, 300 verrechenbare km → Netto 674 € < 730 → keine Steuer/Warnung
+  const data = [{ fee: 800, km: 300, kmBillable: true, status: 'paid', date: '2026-01-10' }];
+  const fb = freibetragStatus(data, 2026, SETTINGS);
+  assert.equal(fb.earned, 800);            // Anzeige: Brutto-Honorar
+  assert.equal(fb.remaining, 0);           // 730 - 800
+  close(fb.taxableNet, 800 - 300 * 0.42);  // 674
+  assert.equal(fb.exceeded, 0);            // Netto < 730 → keine Überschreitung
+  assert.equal(fb.taxFree, true);          // keine Warnung (grün)
+  assert.equal(fb.inEinschleif, false);
+});
+
+test('freibetragStatus: über 730 € → offen 0, Überschreitung separat', () => {
+  const data = [{ fee: 900, status: 'paid', date: '2026-01-10' }];
+  const fb = freibetragStatus(data, 2026, SETTINGS);
+  assert.equal(fb.remaining, 0);
+  assert.equal(fb.exceeded, 900 - FREIGRENZE);
+  assert.ok(fb.inEinschleif); // 730–1460
+});
+
+test('freibetragStatus: nur das gewählte Jahr zählt', () => {
+  const data = [
+    { fee: 100, status: 'paid', date: '2026-01-10' },
+    { fee: 500, status: 'paid', date: '2025-12-31' },
+  ];
+  assert.equal(freibetragStatus(data, 2026, SETTINGS).earned, 100);
+  assert.equal(freibetragStatus(data, 2025, SETTINGS).earned, 500);
+});
+
+// ---- yearStats: Steuer nur auf realisierte Einkünfte ----
+
+test('yearStats: offene Aufträge erhöhen die Steuerbasis nicht', () => {
+  const data = [
+    { fee: 600, km: 0, kmBillable: false, status: 'paid', date: '2026-01-10' },
+    { fee: 800, km: 0, kmBillable: false, status: 'open', date: '2026-02-10' },
+  ];
+  const s = yearStats(data, 2026, SETTINGS);
+  assert.equal(s.totalFee, 1400);   // Übersicht: alle Aufträge
+  assert.equal(s.taxableNet, 600);  // Steuer: nur realisierte
 });

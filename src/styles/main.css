@@ -1308,6 +1308,83 @@ textarea.form-control {
   font-size: var(--text-sm);
 }
 
+.login-info {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* CSV-Import-Assistent */
+.import-modal { max-width: 760px; width: 96vw; }
+
+.import-map-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2) var(--space-3);
+}
+.import-map-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.import-counts { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+.import-preview {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.import-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); }
+.import-table th, .import-table td {
+  padding: 6px 8px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.import-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-elevated);
+  z-index: 1;
+}
+.import-row-invalid   { background: var(--danger-bg); }
+.import-row-duplicate { background: var(--warning-bg); }
+
+.import-controls { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.import-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+/* kompakte Eingabefelder in der editierbaren Vorschau */
+.import-table .form-control {
+  padding: 4px 6px;
+  font-size: var(--text-xs);
+  min-height: 0;
+  height: auto;
+  width: 100%;
+  min-width: 80px;
+}
+
+@media (max-width: 520px) {
+  .import-map-grid { grid-template-columns: 1fr; }
+}
+
 /* Badge für Settings */
 .badge {
   display: inline-flex;
