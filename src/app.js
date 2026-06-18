@@ -5,13 +5,15 @@
 import { store } from './services/store.js';
 import { supabase } from './services/supabase.js';
 import { db } from './services/db.js';
+import { authRedirectUrl } from './config.js';
+import { cooldownSeconds } from './services/authUtils.js';
 
 /**
  * App-Version (Anzeige + Service-Worker-Cache).
  * WICHTIG: Bei Änderung auch CACHE_VERSION in sw.js gleich halten –
  * der Service Worker kann dieses Modul nicht importieren.
  */
-export const APP_VERSION = '2.3.0';
+export const APP_VERSION = '2.4.0';
 import { renderDashboard,   destroyDashboard }   from './components/dashboard.js';
 import { renderAssignments, destroyAssignments } from './components/assignments.js';
 import { renderClients,     destroyClients }     from './components/clients.js';
@@ -72,6 +74,11 @@ window.app = { navigate };
 
 // ---- Login Screen ----
 
+let _loginListenersAttached = false;
+// Früh erfassen: supabase-js (detectSessionInUrl) räumt den Recovery-Hash
+// asynchron aus der URL – beim späteren DOMContentLoaded wäre er evtl. schon weg.
+let _recoveryMode = _isRecoveryUrl();
+
 function _showLoginScreen() {
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
@@ -83,34 +90,91 @@ function _hideLoginScreen() {
   document.getElementById('app').style.display = '';
 }
 
+// ---- Auth-Meldungen (Fehler rot / Info grün) ----
+
+function _showError(msg) {
+  const error = document.getElementById('login-error');
+  const info  = document.getElementById('login-info');
+  info.style.display = 'none';
+  error.textContent = msg ?? '';
+  error.style.display = msg ? 'block' : 'none';
+}
+
+function _showInfo(msg) {
+  const error = document.getElementById('login-error');
+  const info  = document.getElementById('login-info');
+  error.style.display = 'none';
+  info.textContent = msg ?? '';
+  info.style.display = msg ? 'block' : 'none';
+}
+
+function _clearAuthMsg() {
+  document.getElementById('login-error').style.display = 'none';
+  document.getElementById('login-info').style.display = 'none';
+}
+
+/** Eines der Panels (login | forgot | reset) zeigen, die übrigen verstecken. */
+function _showPanel(name) {
+  ['login', 'forgot', 'reset'].forEach(p => {
+    const el = document.getElementById('panel-' + p);
+    if (el) el.style.display = (p === name) ? '' : 'none';
+  });
+  _clearAuthMsg();
+}
+
+// ---- Recovery (Passwort-Reset-Link) ----
+
+function _isRecoveryUrl() {
+  return /type=recovery/.test(window.location.hash || '')
+      || /type=recovery/.test(window.location.search || '');
+}
+
+function _clearRecoveryUrl() {
+  history.replaceState(null, '', authRedirectUrl());
+}
+
+/** Button für `seconds` Sekunden sperren und sichtbar runterzählen. */
+function _cooldownButton(btn, seconds) {
+  const original = btn.dataset.label ?? btn.textContent;
+  btn.dataset.label = original;
+  let remaining = seconds;
+  btn.disabled = true;
+  const tick = () => {
+    if (remaining <= 0) {
+      btn.disabled = false;
+      btn.textContent = original;
+      return;
+    }
+    btn.textContent = `Bitte warten… (${remaining}s)`;
+    remaining -= 1;
+    setTimeout(tick, 1000);
+  };
+  tick();
+}
+
 function _attachLoginListeners() {
+  // Listener nur einmal binden (Login-Screen wird mehrfach gezeigt: Logout etc.)
+  if (_loginListenersAttached) return;
+  _loginListenersAttached = true;
+
   const emailInput    = document.getElementById('login-email');
   const passwordInput = document.getElementById('login-password');
   const loginBtn      = document.getElementById('login-btn');
   const signupBtn     = document.getElementById('signup-btn');
-  const errorEl       = document.getElementById('login-error');
 
   function _setLoading(loading) {
     loginBtn.disabled  = loading;
     signupBtn.disabled = loading;
-    loginBtn.textContent  = loading ? '⏳ Bitte warten…' : 'Anmelden';
+    loginBtn.textContent = loading ? '⏳ Bitte warten…' : 'Anmelden';
   }
 
-  function _showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.style.display = 'block';
-  }
-
-  function _clearError() {
-    errorEl.style.display = 'none';
-  }
-
+  // --- Anmelden ---
   loginBtn.addEventListener('click', async () => {
     const email    = emailInput.value.trim();
     const password = passwordInput.value;
     if (!email || !password) { _showError('Bitte E-Mail und Passwort eingeben.'); return; }
 
-    _clearError();
+    _clearAuthMsg();
     _setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     _setLoading(false);
@@ -123,31 +187,92 @@ function _attachLoginListeners() {
     // Erfolg: onAuthStateChange übernimmt das Weiterleiten
   });
 
+  // --- Konto erstellen ---
   signupBtn.addEventListener('click', async () => {
     const email    = emailInput.value.trim();
     const password = passwordInput.value;
     if (!email || !password) { _showError('Bitte E-Mail und Passwort eingeben.'); return; }
     if (password.length < 6) { _showError('Passwort muss mindestens 6 Zeichen haben.'); return; }
 
-    _clearError();
+    _clearAuthMsg();
     _setLoading(true);
     const { error } = await supabase.auth.signUp({ email, password });
     _setLoading(false);
 
-    if (error) {
-      _showError(error.message);
-    } else {
-      _showError('');
-      emailInput.value = '';
-      passwordInput.value = '';
-      showToast('Konto erstellt – bitte E-Mail bestätigen, dann anmelden.', 'success');
-    }
+    if (error) { _showError(error.message); return; }
+    emailInput.value = '';
+    passwordInput.value = '';
+    showToast('Konto erstellt – bitte E-Mail bestätigen, dann anmelden.', 'success');
   });
 
-  // Enter-Taste → Login
-  [emailInput, passwordInput].forEach(el => {
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginBtn.click(); });
+  // --- Panelwechsel: Passwort vergessen ---
+  document.getElementById('forgot-btn').addEventListener('click', () => {
+    document.getElementById('forgot-email').value = emailInput.value.trim();
+    _showPanel('forgot');
   });
+  document.getElementById('forgot-back-btn').addEventListener('click', () => _showPanel('login'));
+
+  // --- Reset-Mail anfordern (mit Cooldown-Handling, kein Dauersenden) ---
+  const forgotEmail   = document.getElementById('forgot-email');
+  const forgotSendBtn = document.getElementById('forgot-send-btn');
+  forgotSendBtn.addEventListener('click', async () => {
+    if (forgotSendBtn.disabled) return;
+    const email = forgotEmail.value.trim();
+    if (!email) { _showError('Bitte E-Mail eingeben.'); return; }
+
+    _clearAuthMsg();
+    forgotSendBtn.disabled = true;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: authRedirectUrl(),
+    });
+
+    if (error) {
+      const wait = cooldownSeconds(error.message);
+      if (wait != null) {
+        _showError(`Bitte warte kurz, bevor du erneut einen Link anforderst (${wait}s).`);
+        _cooldownButton(forgotSendBtn, wait);
+      } else {
+        forgotSendBtn.disabled = false;
+        _showError(error.message);
+      }
+      return;
+    }
+    // Datenschutz: immer dieselbe neutrale Meldung, plus kurzer Cooldown gegen Doppelklicks
+    _showInfo('Wenn die E-Mail registriert ist, wurde ein Link zum Zurücksetzen gesendet.');
+    _cooldownButton(forgotSendBtn, 35);
+  });
+
+  // --- Neues Passwort speichern (nach Klick auf den Recovery-Link) ---
+  const resetPw      = document.getElementById('reset-password');
+  const resetPw2     = document.getElementById('reset-password2');
+  const resetSaveBtn = document.getElementById('reset-save-btn');
+  resetSaveBtn.addEventListener('click', async () => {
+    const pw  = resetPw.value;
+    const pw2 = resetPw2.value;
+    if (pw.length < 6) { _showError('Passwort muss mindestens 6 Zeichen haben.'); return; }
+    if (pw !== pw2)    { _showError('Die Passwörter stimmen nicht überein.'); return; }
+
+    _clearAuthMsg();
+    resetSaveBtn.disabled = true;
+    const { data, error } = await supabase.auth.updateUser({ password: pw });
+    resetSaveBtn.disabled = false;
+
+    if (error) { _showError(error.message); return; }
+
+    // Erfolgreich: Recovery beenden, URL säubern und direkt in die App
+    _recoveryMode = false;
+    resetPw.value = resetPw2.value = '';
+    _clearRecoveryUrl();
+    showToast('Passwort geändert ✓', 'success');
+    await _initApp(data.user);
+  });
+
+  // Enter-Taste → jeweils passende Aktion
+  [emailInput, passwordInput].forEach(el =>
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginBtn.click(); }));
+  forgotEmail.addEventListener('keydown', (e) => { if (e.key === 'Enter') forgotSendBtn.click(); });
+  [resetPw, resetPw2].forEach(el =>
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') resetSaveBtn.click(); }));
 }
 
 // ---- App Initialisierung (nach Login) ----
@@ -373,24 +498,39 @@ async function _registerSW() {
 // ---- Einstiegspunkt ----
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Auth-Status prüfen
+  // _recoveryMode wurde bereits beim Modul-Load erfasst (siehe oben).
+  // Bei Recovery NICHT in die App, sondern "Neues Passwort"-Maske zeigen.
+
+  // Auth-Status prüfen (detectSessionInUrl hat bei Recovery bereits eine Session gesetzt)
   const { data: { session } } = await supabase.auth.getSession();
 
-  if (session) {
+  if (_recoveryMode) {
+    _showLoginScreen();
+    _showPanel('reset');
+  } else if (session) {
     await _initApp(session.user);
   } else {
     _showLoginScreen();
+    _showPanel('login');
   }
 
-  // Auf Auth-Änderungen reagieren (Login/Logout von außen)
+  // Auf Auth-Änderungen reagieren (Login/Logout/Recovery von außen)
   supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      _recoveryMode = true;
+      _showLoginScreen();
+      _showPanel('reset');
+      return;
+    }
     if (event === 'SIGNED_IN' && session) {
+      if (_recoveryMode) return; // während Recovery nicht in die App springen
       await _initApp(session.user);
     } else if (event === 'SIGNED_OUT') {
       appInitialized = false;
       store.disableSync();
       db.unsubscribeRealtime();
       _showLoginScreen();
+      _showPanel('login');
     }
   });
 });

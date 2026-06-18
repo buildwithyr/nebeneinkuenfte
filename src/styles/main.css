@@ -1308,6 +1308,21 @@ textarea.form-control {
   font-size: var(--text-sm);
 }
 
+.login-info {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 /* Badge für Settings */
 .badge {
   display: inline-flex;

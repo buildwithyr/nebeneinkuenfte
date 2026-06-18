@@ -40,12 +40,34 @@
       </svg>
       <h1>Nebeneink.</h1>
     </div>
-    <p class="login-subtitle">Melde dich an um fortzufahren</p>
     <div id="login-error" class="login-error" style="display:none"></div>
-    <input type="email"    id="login-email"    class="form-control" placeholder="E-Mail" autocomplete="email">
-    <input type="password" id="login-password" class="form-control" placeholder="Passwort" autocomplete="current-password">
-    <button id="login-btn"  class="btn btn-primary"   style="width:100%">Anmelden</button>
-    <button id="signup-btn" class="btn btn-secondary" style="width:100%">Konto erstellen</button>
+    <div id="login-info"  class="login-info"  style="display:none"></div>
+
+    <!-- Panel: Anmelden -->
+    <div id="panel-login" class="auth-panel">
+      <p class="login-subtitle">Melde dich an um fortzufahren</p>
+      <input type="email"    id="login-email"    class="form-control" placeholder="E-Mail" autocomplete="email">
+      <input type="password" id="login-password" class="form-control" placeholder="Passwort" autocomplete="current-password">
+      <button id="login-btn"  class="btn btn-primary"   style="width:100%">Anmelden</button>
+      <button id="signup-btn" class="btn btn-secondary" style="width:100%">Konto erstellen</button>
+      <button id="forgot-btn" class="btn btn-ghost"     style="width:100%">Passwort vergessen?</button>
+    </div>
+
+    <!-- Panel: Passwort vergessen -->
+    <div id="panel-forgot" class="auth-panel" style="display:none">
+      <p class="login-subtitle">Passwort zurücksetzen – gib deine E-Mail-Adresse ein.</p>
+      <input type="email" id="forgot-email" class="form-control" placeholder="E-Mail" autocomplete="email">
+      <button id="forgot-send-btn" class="btn btn-primary" style="width:100%">Link zum Zurücksetzen senden</button>
+      <button id="forgot-back-btn" class="btn btn-ghost"   style="width:100%">← Zurück zum Login</button>
+    </div>
+
+    <!-- Panel: Neues Passwort setzen (nach Klick auf den E-Mail-Link) -->
+    <div id="panel-reset" class="auth-panel" style="display:none">
+      <p class="login-subtitle">Neues Passwort festlegen.</p>
+      <input type="password" id="reset-password"  class="form-control" placeholder="Neues Passwort" autocomplete="new-password">
+      <input type="password" id="reset-password2" class="form-control" placeholder="Passwort wiederholen" autocomplete="new-password">
+      <button id="reset-save-btn" class="btn btn-primary" style="width:100%">Passwort speichern</button>
+    </div>
   </div>
 </div>
 
