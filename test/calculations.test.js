@@ -34,22 +34,22 @@ test('calcAustrianTax: 0 € → keine Steuer', () => {
   assert.equal(calcAustrianTax(0), 0);
 });
 
-test('calcAustrianTax: bis zur Freibetragsgrenze 12.816 € steuerfrei', () => {
-  assert.equal(calcAustrianTax(12816), 0);
+test('calcAustrianTax: bis zur Freibetragsgrenze 13.539 € steuerfrei (2026)', () => {
+  assert.equal(calcAustrianTax(13539), 0);
 });
 
-test('calcAustrianTax: an Stufengrenze 20.818 €', () => {
-  // 20% auf (20818 - 12816) = 8002
-  close(calcAustrianTax(20818), 8002 * 0.20);
+test('calcAustrianTax: an Stufengrenze 21.992 € (2026)', () => {
+  // 20% auf (21992 - 13539) = 8453
+  close(calcAustrianTax(21992), 8453 * 0.20);
 });
 
-test('calcAustrianTax: an Stufengrenze 34.513 €', () => {
-  // 20% auf 8002 + 30% auf (34513 - 20818)
-  close(calcAustrianTax(34513), 8002 * 0.20 + 13695 * 0.30);
+test('calcAustrianTax: an Stufengrenze 36.458 € (2026)', () => {
+  // 20% auf 8453 + 30% auf (36458 - 21992)
+  close(calcAustrianTax(36458), 8453 * 0.20 + 14466 * 0.30);
 });
 
-test('calcAustrianTax: Progression bei 46.000 €', () => {
-  const expected = 8002 * 0.20 + 13695 * 0.30 + (46000 - 34513) * 0.40;
+test('calcAustrianTax: Progression bei 46.000 € (2026)', () => {
+  const expected = 8453 * 0.20 + 14466 * 0.30 + (46000 - 36458) * 0.40;
   close(calcAustrianTax(46000), expected);
 });
 
@@ -59,14 +59,30 @@ test('calcAustrianTax: nie negativ', () => {
 
 // ---- marginalTaxRate ----
 
-test('marginalTaxRate: pro Tarifstufe', () => {
-  assert.equal(marginalTaxRate(0), 0.00);
-  assert.equal(marginalTaxRate(15000), 0.20);
-  assert.equal(marginalTaxRate(25000), 0.30);
-  assert.equal(marginalTaxRate(46000), 0.40);
-  assert.equal(marginalTaxRate(80000), 0.48);
-  assert.equal(marginalTaxRate(500000), 0.50);
-  assert.equal(marginalTaxRate(2000000), 0.55);
+test('marginalTaxRate: Tarifstufen Österreich 2026', () => {
+  assert.equal(marginalTaxRate(13539), 0.00);
+  assert.equal(marginalTaxRate(13540), 0.20);
+
+  assert.equal(marginalTaxRate(21992), 0.20);
+  assert.equal(marginalTaxRate(21993), 0.30);
+
+  assert.equal(marginalTaxRate(36458), 0.30);
+  assert.equal(marginalTaxRate(36459), 0.40);
+
+  assert.equal(marginalTaxRate(70365), 0.40);
+  assert.equal(marginalTaxRate(70366), 0.48);
+
+  assert.equal(marginalTaxRate(104859), 0.48);
+  assert.equal(marginalTaxRate(104860), 0.50);
+
+  assert.equal(marginalTaxRate(1000000), 0.50);
+  assert.equal(marginalTaxRate(1000001), 0.55);
+});
+
+test('taxBracketsForYear: künftige Jahre nutzen das jüngste hinterlegte Jahr', () => {
+  // Solange 2027 nicht gepflegt ist, gelten die 2026er-Stufen weiter.
+  assert.equal(marginalTaxRate(46000, 2027), marginalTaxRate(46000, 2026));
+  assert.equal(calcAustrianTax(46000, 2099), calcAustrianTax(46000, 2026));
 });
 
 // ---- estimateSideIncomeTax: Freigrenze & Einschleifregelung ----

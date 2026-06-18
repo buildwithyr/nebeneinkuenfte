@@ -5,39 +5,64 @@
  * Keine Steuerberatung. Alle Parameter sind im Einstellungsbereich anpassbar.
  */
 
-// Österreichische Einkommensteuer-Tarifstufen 2024/2025
-// Quelle: § 33 EStG, Werte nach Ökosoziale Steuerreform
-const AT_TAX_BRACKETS = [
-  { from: 0,        to: 12816,   rate: 0.00 },
-  { from: 12816,    to: 20818,   rate: 0.20 },
-  { from: 20818,    to: 34513,   rate: 0.30 },
-  { from: 34513,    to: 66612,   rate: 0.40 },
-  { from: 66612,    to: 99266,   rate: 0.48 },
-  { from: 99266,    to: 1000000, rate: 0.50 },
-  { from: 1000000,  to: Infinity,rate: 0.55 },
-];
+// Österreichische Einkommensteuer-Tarifstufen nach Jahr (§ 33 EStG).
+// `rate` gilt für Einkommen bis einschließlich `until` (Obergrenze der Stufe).
+//
+// Wartung: Die Grenzen werden jährlich per Inflationsanpassung verschoben.
+// Für ein neues Jahr einfach einen weiteren Eintrag (z.B. 2027: [...]) ergänzen –
+// alte Jahre bleiben für korrekte Rückrechnungen erhalten.
+const TAX_BRACKETS_BY_YEAR = {
+  2026: [
+    { until: 13539,    rate: 0.00 },
+    { until: 21992,    rate: 0.20 },
+    { until: 36458,    rate: 0.30 },
+    { until: 70365,    rate: 0.40 },
+    { until: 104859,   rate: 0.48 },
+    { until: 1000000,  rate: 0.50 },
+    { until: Infinity, rate: 0.55 },
+  ],
+};
+
+export const DEFAULT_TAX_YEAR = 2026;
+
+/**
+ * Tarifstufen für ein Jahr.
+ * Fallback: jüngstes hinterlegtes Jahr ≤ `year` (sonst das neueste überhaupt) –
+ * so rechnet die App auch für künftige Jahre weiter, bis neue Werte gepflegt sind.
+ */
+export function taxBracketsForYear(year) {
+  if (TAX_BRACKETS_BY_YEAR[year]) return TAX_BRACKETS_BY_YEAR[year];
+  const years = Object.keys(TAX_BRACKETS_BY_YEAR).map(Number).sort((a, b) => a - b);
+  const fallback = years.filter(y => y <= year).pop() ?? years[years.length - 1];
+  return TAX_BRACKETS_BY_YEAR[fallback] ?? TAX_BRACKETS_BY_YEAR[DEFAULT_TAX_YEAR];
+}
 
 /**
  * Österreichische Einkommensteuer auf ein Jahreseinkommen (brutto, nach Sonderausgaben)
  */
-export function calcAustrianTax(grossIncome) {
+export function calcAustrianTax(grossIncome, year = DEFAULT_TAX_YEAR) {
+  const brackets = taxBracketsForYear(year);
   let tax = 0;
-  for (const bracket of AT_TAX_BRACKETS) {
-    if (grossIncome <= bracket.from) break;
-    const taxable = Math.min(grossIncome, bracket.to) - bracket.from;
-    tax += taxable * bracket.rate;
+  let lower = 0;
+  for (const b of brackets) {
+    if (grossIncome <= lower) break;
+    const taxable = Math.min(grossIncome, b.until) - lower;
+    tax += taxable * b.rate;
+    lower = b.until;
   }
   return Math.max(0, tax);
 }
 
 /**
- * Grenzsteuersatz für ein gegebenes Bruttogehalt
+ * Grenzsteuersatz für ein gegebenes Bruttogehalt.
+ * An einer Stufengrenze (genau `until`) gilt noch der niedrigere Satz.
  */
-export function marginalTaxRate(grossIncome) {
-  for (const bracket of AT_TAX_BRACKETS) {
-    if (grossIncome < bracket.to) return bracket.rate;
+export function marginalTaxRate(grossIncome, year = DEFAULT_TAX_YEAR) {
+  const brackets = taxBracketsForYear(year);
+  for (const b of brackets) {
+    if (grossIncome <= b.until) return b.rate;
   }
-  return 0.55;
+  return brackets[brackets.length - 1].rate;
 }
 
 /**
@@ -56,7 +81,7 @@ export function marginalTaxRate(grossIncome) {
 export const FREIGRENZE = 730;
 export const EINSCHLEIF_ENDE = 1460; // 2 × Freigrenze
 
-export function estimateSideIncomeTax(settings, sideIncomeNet) {
+export function estimateSideIncomeTax(settings, sideIncomeNet, year = DEFAULT_TAX_YEAR) {
   if (sideIncomeNet <= 0) return { taxAmount: 0, effectiveRate: 0, marginalRate: 0, freigrenzeFree: FREIGRENZE, freigrenzePct: 0 };
 
   const freigrenzeFree = Math.max(0, FREIGRENZE - sideIncomeNet);
@@ -77,12 +102,12 @@ export function estimateSideIncomeTax(settings, sideIncomeNet) {
   }
 
   const primaryGross  = settings.primaryIncomeGross ?? 46000;
-  const taxOnPrimary  = calcAustrianTax(primaryGross);
-  const taxOnTotal    = calcAustrianTax(primaryGross + sideIncomeNet);
+  const taxOnPrimary  = calcAustrianTax(primaryGross, year);
+  const taxOnTotal    = calcAustrianTax(primaryGross + sideIncomeNet, year);
   const fullTax       = Math.max(0, taxOnTotal - taxOnPrimary);
   const taxAmount     = _applyEinschleif(fullTax, sideIncomeNet);
   const effectiveRate = taxAmount / sideIncomeNet;
-  const mRate         = marginalTaxRate(primaryGross);
+  const mRate         = marginalTaxRate(primaryGross, year);
 
   return { taxAmount, effectiveRate, marginalRate: mRate, freigrenzeFree, freigrenzePct };
 }
@@ -205,7 +230,7 @@ export function yearStats(assignments, year, settings) {
   // Einkünfte. Offene, noch nicht durchgeführte Aufträge sind kein Einkommen.
   const realized = aYear.filter(isRealizedIncome);
   const { totalKmMoney, taxableNet } = calcTaxableIncome(realized, settings);
-  const tax = estimateSideIncomeTax(settings, taxableNet);
+  const tax = estimateSideIncomeTax(settings, taxableNet, year);
 
   const unpaidFee = aYear.filter(a => a.status === 'completed').reduce((s, a) => s + (Number(a.fee) || 0), 0);
   const reserve = taxableNet * (settings.reserveRate ?? 0.40);

@@ -14,7 +14,7 @@ Eine moderne Progressive Web App (PWA) für Mystery Shopping und Nebeneinkünfte
 
 ## Steuer-Schätzung (Österreich)
 
-- Österreichische Einkommensteuer-Tarifstufen 2024/2025 (§ 33 EStG)
+- Österreichische Einkommensteuer-Tarifstufen 2026 (§ 33 EStG), jahresbasiert konfigurierbar
 - Grenzsteuersatz-Berechnung auf Basis des Hauptberuf-Bruttoeinkommens
 - Kilometergeld (€ 0,42/km) als Betriebsausgabe
 - **Alle Werte sind unverbindliche Schätzungen – keine Steuerberatung**
