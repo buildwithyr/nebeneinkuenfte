@@ -1363,6 +1363,24 @@ textarea.form-control {
 .import-row-invalid   { background: var(--danger-bg); }
 .import-row-duplicate { background: var(--warning-bg); }
 
+.import-controls { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.import-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+/* kompakte Eingabefelder in der editierbaren Vorschau */
+.import-table .form-control {
+  padding: 4px 6px;
+  font-size: var(--text-xs);
+  min-height: 0;
+  height: auto;
+  width: 100%;
+  min-width: 80px;
+}
+
 @media (max-width: 520px) {
   .import-map-grid { grid-template-columns: 1fr; }
 }
