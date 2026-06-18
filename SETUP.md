@@ -17,12 +17,16 @@ Das legt Tabellen, RLS-Policies und Realtime an.
 
 ## 2. Verbindung im Code
 
-Die Zugangsdaten stehen in [`src/services/supabase.js`](src/services/supabase.js):
+Die Zugangsdaten stehen zentral in [`src/config.js`](src/config.js):
 
 ```js
-const SUPABASE_URL = 'https://aaiubbokbcezeazeycer.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_...'; // Publishable Key – für Client-Code vorgesehen
+export const SUPABASE_URL      = 'https://aaiubbokbcezeazeycer.supabase.co';
+export const SUPABASE_ANON_KEY = 'sb_publishable_...'; // Publishable Key – für Client-Code vorgesehen
 ```
+
+`src/services/supabase.js` erstellt daraus den Client. Optional lassen sich die
+Werte über ein globales `window.__APP_CONFIG__` überschreiben (siehe
+`.env.example`).
 
 **Wichtig / Sicherheit:** Der hinterlegte Key ist ein **Publishable Key**
 (`sb_publishable_…`), kein Geheimnis. Er darf öffentlich im Frontend stehen –
@@ -35,13 +39,53 @@ unten), nicht über Geheimhaltung des Keys.
 ## 3. Authentifizierung
 
 - Methode: **E-Mail + Passwort** (`supabase.auth.signInWithPassword` / `signUp`)
+- **Passwort vergessen / zurücksetzen** ist integriert (siehe unten).
+- **Magic Link wird bewusst NICHT verwendet** – die App sendet keine OTP-/Magic-
+  Link-Mails automatisch. Die einzige E-Mail-Aktion ist der Passwort-Reset, und
+  der hat ein Cooldown-Handling (kein Mehrfach-/Dauersenden).
 - Registrierung erfordert i. d. R. eine E-Mail-Bestätigung
-  (Supabase Dashboard → Authentication → Providers → Email)
+  (Dashboard → Authentication → Providers → Email)
 - Session bleibt im Browser erhalten; die App reagiert auf
-  `onAuthStateChange` (Login/Logout/Token-Refresh)
+  `onAuthStateChange` (Login/Logout/Token-Refresh/`PASSWORD_RECOVERY`)
 
 Empfohlene Auth-Härtung (Dashboard → Authentication → Policies/Settings):
 - **Leaked Password Protection** aktivieren (HaveIBeenPwned-Abgleich)
+
+### 3a. URL Configuration (WICHTIG – behebt den "localhost"-Reset-Link)
+
+> Dashboard → **Authentication → URL Configuration**
+
+Wenn der Reset-Link in der E-Mail auf `localhost` zeigt, ist die **Site URL** im
+Dashboard falsch gesetzt. So konfigurieren:
+
+- **Site URL**: die echte Production-URL, z. B.
+  `https://<user>.github.io/nebeneinkuenfte/` (oder die Vercel-/eigene Domain).
+  **Niemals** `localhost` als Site URL in Production.
+- **Redirect URLs** (alle erlaubten Ziele hinzufügen):
+  - `http://localhost:8080/` – nur für lokale Entwicklung
+  - `https://<user>.github.io/nebeneinkuenfte/` – Production
+  - ggf. Vercel-Preview-URLs (z. B. `https://*.vercel.app/`)
+
+Die App übergibt den Redirect **dynamisch** (`authRedirectUrl()` in
+`src/config.js`) auf Basis von `window.location` – dadurch funktioniert der Link
+lokal **und** in Production ohne hartcodierte Adressen. Wichtig ist nur, dass die
+jeweilige URL oben in den **Redirect URLs** freigegeben ist.
+
+### 3b. Passwort-Reset-Flow (in der App)
+
+1. Login-Screen → **„Passwort vergessen?"** → E-Mail eingeben →
+   `resetPasswordForEmail(email, { redirectTo })`.
+2. Neutrale Bestätigung: „Wenn die E-Mail registriert ist, wurde ein Link
+   gesendet." (verrät nicht, ob die Adresse existiert).
+3. Nutzer klickt den Link in der E-Mail → landet auf der App-URL; Supabase hängt
+   den Recovery-Token ans URL-Fragment.
+4. Die App erkennt das über das `PASSWORD_RECOVERY`-Event und zeigt automatisch
+   die **„Neues Passwort"**-Maske → `updateUser({ password })` → danach direkt
+   eingeloggt im Dashboard.
+
+> Hinweis: Es gibt bewusst **keine** eigene `/reset-password`-Route. Die App ist
+> eine hash-basierte Static-SPA; ein echter Pfad würde auf GitHub Pages ins 404
+> laufen. Die Recovery-Maske wird stattdessen über das Auth-Event ausgelöst.
 
 ## 4. Row Level Security (RLS)
 
