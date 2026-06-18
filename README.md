@@ -30,32 +30,43 @@ git push origin main
 
 Die App ist so konfiguriert, dass sie direkt aus dem Repository-Root deployed werden kann.
 
-## Import alter Aufträge (CSV)
+## Import alter Aufträge (CSV / Excel)
 
-Alte Aufträge (z. B. aus 2024/2025) lassen sich per CSV importieren:
+**Einstellungen → Export & Import → „CSV-Import (Aufträge)"** öffnen und eine
+Datei wählen – **`.csv`, `.xlsx` oder `.xls`** (Excel wird via SheetJS gelesen,
+die Bibliothek wird nur bei Bedarf nachgeladen). Vorlage:
+[`import-template.csv`](import-template.csv).
 
-1. **Einstellungen → Export & Import → „CSV-Import (Aufträge)"** öffnen.
-2. CSV-Datei (UTF-8) wählen. Excel/Numbers: „Speichern unter → **CSV UTF-8**".
-   Eine Vorlage liegt im Projekt: [`import-template.csv`](import-template.csv).
-3. Die App **erkennt die Spalten automatisch** (Datum, Auftraggeber, Beschreibung,
-   Betrag, Kilometer, Status, Notiz). Nicht eindeutige Spalten lassen sich im
-   Assistenten **manuell zuordnen**.
-4. **Vorschau** prüfen: gültige / fehlerhafte / doppelte Zeilen werden gezählt
-   und markiert. Duplikate (gegen Bestand und innerhalb der Datei) werden
-   standardmäßig übersprungen.
-5. **„Import bestätigen"** → die Aufträge werden in Supabase gespeichert; das
-   Dashboard (inkl. 730-€-Freibetrag) wird neu berechnet.
+Der Assistent erkennt **zwei Layouts automatisch**:
 
-Erkannt werden:
+**1. Normales Layout** – Spalten wie Datum, Auftraggeber, Beschreibung, Betrag,
+Kilometer, Status, Notiz. Nicht eindeutige Spalten lassen sich manuell zuordnen.
+Datum wird aus `12.03.2025` / `2025-03-12` / `12/03/2025` erkannt, das Jahr
+automatisch abgeleitet.
 
-- **Beträge** mit deutschem Komma (`142,50`) und Punkt (`142.50`), inkl.
-  Tausendertrennzeichen und `€`.
-- **Datumsformate** `12.03.2025`, `2025-03-12`, `12/03/2025` (Tag zuerst).
-  Das **Jahr** wird automatisch aus dem Datum abgeleitet.
-- **Status** wie `offen`/`abgeschlossen`/`bezahlt` (auch englisch).
+**2. Matrix-Layout** (nicht normierte Tabellen, **ohne Datum**) – erste Spalte =
+Beschreibung, weitere Spalten = Auftraggeber, der Betrag steht in genau einer
+Auftraggeber-Spalte, optional km ganz rechts:
+
+| Beschreibung | Whitebox | Concertare | Market Mind |
+|---|---|---|---|
+| IQOS Anrufe | 40 | | |
+| XXXLutz | | 10 | |
+
+→ wird zu: *Whitebox / IQOS Anrufe / 40 €* und *Concertare / XXXLutz / 10 €*.
+Da kein Datum vorhanden ist, wählst du im Assistenten nur das **Jahr**
+(2024 / 2025 / 2026 …); Standardstatus ist **Bezahlt**. Die Vorschau ist
+**voll editierbar** (Auftraggeber, Beschreibung, Betrag, km, Jahr, Status).
+
+In beiden Fällen:
+
+- **Beträge** mit deutschem Komma (`142,50`) und Punkt, inkl. `€`.
+- **Vorschau** mit Zählung gültig / fehlerhaft / doppelt; **Duplikate** (Vergleich
+  über Auftraggeber + Beschreibung + Betrag) werden standardmäßig übersprungen.
+- Erst nach **„Import bestätigen"** wird in Supabase gespeichert; danach wird das
+  Dashboard (inkl. 730-€-Freibetrag) neu berechnet.
 
 > Der Import **fügt nur hinzu** und überschreibt keine bestehenden Daten.
-> `.xlsx` wird nicht direkt gelesen – bitte vorher als CSV (UTF-8) exportieren.
 
 ## Synchronisation (optional)
 
