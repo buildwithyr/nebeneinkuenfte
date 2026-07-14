@@ -19,7 +19,7 @@ import { renderAnalytics,   destroyAnalytics }   from './components/analytics.js
 import { renderSettings,    destroySettings }    from './components/settings.js';
 
 // ---- Toast ----
-export function showToast(message, type = 'info') {
+export function showToast(message, type = 'info', duration = 3500) {
   const container = document.getElementById('toast-container');
   if (!container) return;
 
@@ -32,7 +32,7 @@ export function showToast(message, type = 'info') {
   setTimeout(() => {
     toast.classList.add('removing');
     toast.addEventListener('animationend', () => toast.remove());
-  }, 3500);
+  }, duration);
 }
 
 // ---- Routing ----
@@ -361,10 +361,54 @@ function _updateThemeIcon() {
   btn.title = store.settings.theme === 'dark' ? 'Light Mode' : 'Dark Mode';
 }
 
+// ---- Update-Erkennung ----
+// iOS suspendiert Home-Bildschirm-Apps statt sie neu zu laden – ein neuer
+// Service Worker kommt daher oft erst zwei App-Starts nach dem Deploy zum
+// Zug. Wir prüfen deshalb aktiv bei jeder Rückkehr in den Vordergrund auf
+// Updates und weisen den Nutzer per Toast darauf hin, statt die Seite
+// eigenmächtig neu zu laden (würde Formulareingaben/Sync-Status verwerfen).
+
+let _updateNotified = false;
+
+function _notifyUpdateAvailable() {
+  if (_updateNotified) return;
+  _updateNotified = true;
+  showToast('Update verfügbar – App bitte schließen und neu öffnen', 'info', 10000);
+}
+
+function _watchForUpdates(registration) {
+  // Fall 1: Beim Registrieren liegt bereits ein installierter, aber noch
+  // nicht aktiver Worker vor (z.B. Install schlug vorher fehl und wartet).
+  if (registration.waiting && registration.active) _notifyUpdateAvailable();
+
+  // Fall 2: Ein neuer Worker wird während der laufenden Session gefunden
+  // und installiert, während schon ein anderer die Seite kontrolliert.
+  registration.addEventListener('updatefound', () => {
+    const installing = registration.installing;
+    if (!installing) return;
+    installing.addEventListener('statechange', () => {
+      if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+        _notifyUpdateAvailable();
+      }
+    });
+  });
+
+  // sw.js prüft Byte-Änderungen normalerweise nur bei einer echten
+  // Navigation – die fehlt beim iOS-Resume aus dem Suspend-Zustand.
+  // Also selbst aktiv nachfragen, sobald die App wieder sichtbar wird.
+  const checkForUpdate = () => {
+    if (document.visibilityState === 'visible') registration.update().catch(() => {});
+  };
+  document.addEventListener('visibilitychange', checkForUpdate);
+  window.addEventListener('focus', checkForUpdate);
+  window.addEventListener('pageshow', checkForUpdate);
+}
+
 async function _registerSW() {
   if (!('serviceWorker' in navigator)) return;
   try {
-    await navigator.serviceWorker.register('./sw.js');
+    const registration = await navigator.serviceWorker.register('./sw.js');
+    _watchForUpdates(registration);
   } catch (err) {
     console.warn('[App] Service Worker Registrierung fehlgeschlagen:', err);
   }
