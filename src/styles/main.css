@@ -2,31 +2,30 @@
    Design Tokens – CSS Custom Properties
    ========================================================= */
 :root {
-  /* Colors – Dark Mode (default) */
-  --bg-primary:   #0D1B2A;
-  --bg-card:      #152032;
-  --bg-elevated:  #1A2942;
-  --bg-input:     #0D1B2A;
-  --accent:       #00B4D8;
-  --accent-dark:  #0096B7;
-  --accent-light: rgba(0, 180, 216, 0.12);
-  --accent-glow:  rgba(0, 180, 216, 0.25);
-  --text-primary: #EDF2F7;
-  --text-secondary:#8FA7BF;
-  --text-muted:   #4E6578;
-  --border:       #1E3048;
-  --border-focus: #00B4D8;
-  --success:      #06D6A0;
-  --success-bg:   rgba(6, 214, 160, 0.12);
-  --warning:      #FFB703;
-  --warning-bg:   rgba(255, 183, 3, 0.12);
-  --danger:       #EF476F;
-  --danger-bg:    rgba(239, 71, 111, 0.12);
-  --info:         #118AB2;
+  /* Colors – Dark Mode (default) – "Ink" (Broadsheet-Redesign, dunkel abgeleitet) */
+  --bg-primary:   #201E1D;
+  --bg-card:      #302D2C;
+  --bg-elevated:  #3B3837;
+  --bg-input:     #2A2726;
+  --accent:       #62C5EE;
+  --accent-dark:  #38A6CF;
+  --accent-light: rgba(98, 197, 238, 0.14);
+  --accent-glow:  rgba(98, 197, 238, 0.24);
+  --text-primary: #F3F2F2;
+  --text-secondary:#BAB6B6;
+  --text-muted:   #837F7F;
+  --border:       #46403F;
+  --border-focus: #62C5EE;
+  --success:      #6FBF86;
+  --success-bg:   rgba(111, 191, 134, 0.14);
+  --warning:      #E0B23A;
+  --warning-bg:   rgba(224, 178, 58, 0.14);
+  --danger:       #FF6FA8;
+  --danger-bg:    rgba(255, 111, 168, 0.14);
+  --info:         #38A6CF;
 
-  /* Typography */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI',
-               system-ui, sans-serif;
+  /* Typography – Source Serif 4 via Systemserife (kein CDN, offline-fähig) */
+  --font-sans: ui-serif, Georgia, 'Source Serif 4', 'Times New Roman', serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
   --text-xs:   0.75rem;
   --text-sm:   0.875rem;
@@ -47,12 +46,12 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
 
-  /* Radii */
-  --radius-sm:  0.5rem;
-  --radius-md:  0.75rem;
-  --radius-lg:  1rem;
-  --radius-xl:  1.25rem;
-  --radius-2xl: 1.5rem;
+  /* Radii – schmaler & kantiger (Broadsheet-Zeitungssatz statt Fintech-Pillen) */
+  --radius-sm:  0.1875rem;
+  --radius-md:  0.25rem;
+  --radius-lg:  0.375rem;
+  --radius-xl:  0.5rem;
+  --radius-2xl: 0.625rem;
   --radius-full: 9999px;
 
   /* Shadows */
@@ -70,31 +69,31 @@
   --max-width: 640px;
 }
 
-/* Light Mode */
+/* Light Mode – "Broadsheet": Zeitungspapier statt Fintech-Weiß */
 [data-theme="light"] {
-  --bg-primary:   #F0F4F8;
-  --bg-card:      #FFFFFF;
+  --bg-primary:   #F3F2F2;
+  --bg-card:      #EAE9E9;
   --bg-elevated:  #FFFFFF;
-  --bg-input:     #F7FAFC;
-  --accent:       #0096B7;
-  --accent-dark:  #007A96;
-  --accent-light: rgba(0, 150, 183, 0.08);
-  --accent-glow:  rgba(0, 150, 183, 0.15);
-  --text-primary: #1A2942;
-  --text-secondary:#4A6080;
-  --text-muted:   #8FA7BF;
-  --border:       #E2ECF4;
-  --border-focus: #0096B7;
-  --success:      #059669;
-  --success-bg:   rgba(5, 150, 105, 0.08);
-  --warning:      #D97706;
-  --warning-bg:   rgba(217, 119, 6, 0.08);
-  --danger:       #DC2626;
-  --danger-bg:    rgba(220, 38, 38, 0.08);
-  --shadow-sm:    0 1px 3px rgba(0,0,0,0.08);
-  --shadow-md:    0 4px 16px rgba(0,0,0,0.08);
-  --shadow-lg:    0 8px 32px rgba(0,0,0,0.12);
-  --shadow-accent: 0 4px 20px rgba(0, 150, 183, 0.15);
+  --bg-input:     #EAE9E9;
+  --accent:       #0088B0;
+  --accent-dark:  #1186AC;
+  --accent-light: rgba(0, 136, 176, 0.08);
+  --accent-glow:  rgba(0, 136, 176, 0.16);
+  --text-primary: #201E1D;
+  --text-secondary:#605D5D;
+  --text-muted:   #9B9797;
+  --border:       #DAD7D7;
+  --border-focus: #0088B0;
+  --success:      #3F7D4F;
+  --success-bg:   rgba(63, 125, 79, 0.10);
+  --warning:      #A6790A;
+  --warning-bg:   rgba(166, 121, 10, 0.10);
+  --danger:       #AA0B56;
+  --danger-bg:    rgba(170, 11, 86, 0.08);
+  --shadow-sm:    0 1px 2px rgba(45,43,43,0.10);
+  --shadow-md:    0 3px 10px rgba(45,43,43,0.12);
+  --shadow-lg:    0 12px 32px rgba(45,43,43,0.16);
+  --shadow-accent: 0 4px 20px rgba(0, 136, 176, 0.16);
 }
 
 /* =========================================================
@@ -698,13 +697,13 @@ textarea.form-control {
 .badge-accent   { background: var(--accent-light); color: var(--accent); }
 .badge-success  { background: var(--success-bg); color: var(--success); }
 .badge-warning  { background: var(--warning-bg); color: var(--warning); }
-.badge-info     { background: rgba(0,180,216,0.15); color: var(--accent); }
+.badge-info     { background: var(--accent-light); color: var(--accent); }
 .badge-danger   { background: var(--danger-bg); color: var(--danger); }
-.badge-muted    { background: rgba(143,167,191,0.1); color: var(--text-muted); }
+.badge-muted    { background: color-mix(in srgb, var(--text-muted) 14%, transparent); color: var(--text-muted); }
 
 /* Workflow-Status Badges */
 .status-open      { background: var(--warning-bg);  color: var(--warning); }
-.status-completed { background: rgba(17,138,178,0.15); color: var(--info); }
+.status-completed { background: color-mix(in srgb, var(--info) 15%, transparent); color: var(--info); }
 .status-paid      { background: var(--success-bg);  color: var(--success); }
 
 /* =========================================================
