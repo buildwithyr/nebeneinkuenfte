@@ -5,9 +5,18 @@
 
 import { store } from '../services/store.js';
 import {
-  yearStats, monthlyStats, clientStats, availableYears, filterByYear,
-  formatCurrency, formatKm, formatPercent, formatDate, escapeHtml,
-  FREIGRENZE, EINSCHLEIF_ENDE,
+  yearStats,
+  monthlyStats,
+  clientStats,
+  availableYears,
+  filterByYear,
+  formatCurrency,
+  formatKm,
+  formatPercent,
+  formatDate,
+  escapeHtml,
+  FREIGRENZE,
+  EINSCHLEIF_ENDE,
 } from '../services/calculations.js';
 
 let chartBar = null;
@@ -19,13 +28,19 @@ export function renderDashboard(container) {
 
   // Re-render bei Datenänderungen
   const unsub1 = store.on('assignments', () => _render(container));
-  const unsub2 = store.on('settings',    () => _render(container));
-  container._dashboardUnsub = () => { unsub1(); unsub2(); };
+  const unsub2 = store.on('settings', () => _render(container));
+  container._dashboardUnsub = () => {
+    unsub1();
+    unsub2();
+  };
 }
 
 export function destroyDashboard(container) {
   container._dashboardUnsub?.();
-  if (chartBar) { chartBar.destroy(); chartBar = null; }
+  if (chartBar) {
+    chartBar.destroy();
+    chartBar = null;
+  }
 }
 
 function _render(container) {
@@ -33,14 +48,16 @@ function _render(container) {
   const years = availableYears(assignments);
   if (!years.includes(selectedYear)) selectedYear = years[0] ?? new Date().getFullYear();
 
-  const stats   = yearStats(assignments, selectedYear, settings);
+  const stats = yearStats(assignments, selectedYear, settings);
   const monthly = monthlyStats(assignments, selectedYear);
   const clientS = clientStats(assignments, clients, selectedYear, settings);
   const sym = settings.currencySymbol ?? '€';
   const yearAssignments = filterByYear(assignments, selectedYear);
-  const openCount       = yearAssignments.filter(a => a.status === 'open').length;
-  const completedCount  = yearAssignments.filter(a => a.status === 'completed').length;
-  const openFee         = yearAssignments.filter(a => a.status === 'open').reduce((s, a) => s + (a.fee ?? 0), 0);
+  const openCount = yearAssignments.filter((a) => a.status === 'open').length;
+  const completedCount = yearAssignments.filter((a) => a.status === 'completed').length;
+  const openFee = yearAssignments
+    .filter((a) => a.status === 'open')
+    .reduce((s, a) => s + (a.fee ?? 0), 0);
 
   container.innerHTML = `
     <div class="page-title">Dashboard</div>
@@ -48,11 +65,15 @@ function _render(container) {
 
     <!-- Jahr-Auswahl -->
     <div class="filter-bar mb-4" id="db-year-filter">
-      ${years.map(y => `
+      ${years
+        .map(
+          (y) => `
         <button class="filter-chip ${y === selectedYear ? 'active' : ''}" data-year="${y}">
           ${y}
         </button>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
 
     <!-- Kennzahlen-Karten -->
@@ -112,7 +133,7 @@ function _render(container) {
         <div class="metric-icon warning-bg">🏦</div>
         <div class="metric-label">Empf. Rücklage*</div>
         <div class="metric-value warning">${_fmt(stats.reserve, sym)}</div>
-        <div class="metric-sub">${formatPercent(settings.reserveRate ?? 0.40)} von Honorar</div>
+        <div class="metric-sub">${formatPercent(settings.reserveRate ?? 0.4)} von Honorar</div>
       </div>
     </div>
 
@@ -132,10 +153,15 @@ function _render(container) {
     </div>
 
     <!-- Auftraggeber-Verteilung -->
-    ${clientS.filter(c => c.count > 0).length > 0 ? `
+    ${
+      clientS.filter((c) => c.count > 0).length > 0
+        ? `
     <div class="card mb-4">
       <div class="section-title mb-3">Auftraggeber ${selectedYear}</div>
-      ${clientS.filter(c => c.count > 0).map(cs => `
+      ${clientS
+        .filter((c) => c.count > 0)
+        .map(
+          (cs) => `
         <div class="stat-row">
           <div>
             <div class="stat-row-label" style="font-weight:600;color:var(--text-primary)">${_esc(cs.client.name)}</div>
@@ -147,11 +173,15 @@ function _render(container) {
           </div>
         </div>
         <div class="progress-bar">
-          <div class="progress-fill" style="width:${(cs.share*100).toFixed(1)}%"></div>
+          <div class="progress-fill" style="width:${(cs.share * 100).toFixed(1)}%"></div>
         </div>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
-    ` : ''}
+    `
+        : ''
+    }
 
     <!-- Letzte Aufträge -->
     <div class="section-header">
@@ -178,28 +208,31 @@ function _drawChart(monthly, sym) {
   const canvas = document.getElementById('db-chart-bar');
   if (!canvas) return;
 
-  if (chartBar) { chartBar.destroy(); chartBar = null; }
+  if (chartBar) {
+    chartBar.destroy();
+    chartBar = null;
+  }
 
   const isDark = document.documentElement.dataset.theme !== 'light';
-  const textColor  = isDark ? '#8FA7BF' : '#4A6080';
-  const gridColor  = isDark ? '#1E3048' : '#E2ECF4';
+  const textColor = isDark ? '#8FA7BF' : '#4A6080';
+  const gridColor = isDark ? '#1E3048' : '#E2ECF4';
   const accentColor = '#00B4D8';
 
   chartBar = new Chart(canvas, {
     type: 'bar',
     data: {
-      labels: monthly.map(m => m.label),
-      datasets: [{
-        label: 'Honorar',
-        data: monthly.map(m => m.fee),
-        backgroundColor: monthly.map(m =>
-          m.fee > 0 ? accentColor + 'CC' : gridColor
-        ),
-        borderColor: monthly.map(m => m.fee > 0 ? accentColor : 'transparent'),
-        borderWidth: 2,
-        borderRadius: 6,
-        borderSkipped: false,
-      }],
+      labels: monthly.map((m) => m.label),
+      datasets: [
+        {
+          label: 'Honorar',
+          data: monthly.map((m) => m.fee),
+          backgroundColor: monthly.map((m) => (m.fee > 0 ? accentColor + 'CC' : gridColor)),
+          borderColor: monthly.map((m) => (m.fee > 0 ? accentColor : 'transparent')),
+          borderWidth: 2,
+          borderRadius: 6,
+          borderSkipped: false,
+        },
+      ],
     },
     options: {
       responsive: true,
@@ -233,10 +266,8 @@ function _drawChart(monthly, sym) {
 }
 
 function _recentAssignments(assignments, clients, sym) {
-  const clientMap = Object.fromEntries(clients.map(c => [c.id, c.name]));
-  const recent = [...assignments]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 5);
+  const clientMap = Object.fromEntries(clients.map((c) => [c.id, c.name]));
+  const recent = [...assignments].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
   if (!recent.length) {
     return `<div class="empty-state">
@@ -246,7 +277,9 @@ function _recentAssignments(assignments, clients, sym) {
     </div>`;
   }
 
-  return recent.map(a => `
+  return recent
+    .map(
+      (a) => `
     <div class="list-item" data-id="${a.id}" onclick="window.app.navigate('assignments')">
       <div class="list-item-main">
         <div class="list-item-title">${_esc(a.description || clientMap[a.clientId] || '–')}</div>
@@ -260,21 +293,25 @@ function _recentAssignments(assignments, clients, sym) {
       <div>
         <div class="list-item-value ${a.status === 'paid' ? '' : 'warning'}">${_fmt(a.fee, sym)}</div>
         <div class="text-right mt-1">
-          ${a.status === 'paid'
-            ? '<span class="badge badge-success">💰 Bezahlt</span>'
-            : a.status === 'completed'
-              ? '<span class="badge badge-info">✓ Abgeschlossen</span>'
-              : '<span class="badge badge-warning">📋 Offen</span>'}
+          ${
+            a.status === 'paid'
+              ? '<span class="badge badge-success">💰 Bezahlt</span>'
+              : a.status === 'completed'
+                ? '<span class="badge badge-info">✓ Abgeschlossen</span>'
+                : '<span class="badge badge-warning">📋 Offen</span>'
+          }
         </div>
       </div>
     </div>
-  `).join('');
+  `
+    )
+    .join('');
 }
 
 function _thisMonthFee(assignments, settings) {
   const now = new Date();
   return assignments
-    .filter(a => {
+    .filter((a) => {
       const d = new Date(a.date);
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     })
@@ -283,32 +320,32 @@ function _thisMonthFee(assignments, settings) {
 
 function _thisMonthCount(assignments) {
   const now = new Date();
-  return assignments.filter(a => {
+  return assignments.filter((a) => {
     const d = new Date(a.date);
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   }).length;
 }
 
 function _renderFreigrenzeCard(stats, sym) {
-  const net      = stats.taxableNet;   // steuerpflichtiger Gewinn nach km-Abzug
-  const free     = Math.max(0, FREIGRENZE - net);
-  const pct      = Math.min(100, (net / FREIGRENZE) * 100).toFixed(0);
-  const isOver   = net > FREIGRENZE;
+  const net = stats.taxableNet; // steuerpflichtiger Gewinn nach km-Abzug
+  const free = Math.max(0, FREIGRENZE - net);
+  const pct = Math.min(100, (net / FREIGRENZE) * 100).toFixed(0);
+  const isOver = net > FREIGRENZE;
   const isEinschleif = net > FREIGRENZE && net <= EINSCHLEIF_ENDE;
 
   let statusText, barColor, cardClass;
   if (net <= FREIGRENZE) {
     statusText = `Noch ${_fmt(free, sym)} frei`;
-    barColor   = 'var(--success)';
-    cardClass  = '';
+    barColor = 'var(--success)';
+    cardClass = '';
   } else if (isEinschleif) {
     statusText = `Einschleifregelung aktiv`;
-    barColor   = 'var(--warning)';
-    cardClass  = 'warning-border';
+    barColor = 'var(--warning)';
+    cardClass = 'warning-border';
   } else {
     statusText = `Voller Grenzsteuersatz`;
-    barColor   = 'var(--danger)';
-    cardClass  = 'danger-border';
+    barColor = 'var(--danger)';
+    cardClass = 'danger-border';
   }
 
   return `

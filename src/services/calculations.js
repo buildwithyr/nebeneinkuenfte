@@ -8,13 +8,13 @@
 // Österreichische Einkommensteuer-Tarifstufen 2024/2025
 // Quelle: § 33 EStG, Werte nach Ökosoziale Steuerreform
 const AT_TAX_BRACKETS = [
-  { from: 0,        to: 12816,   rate: 0.00 },
-  { from: 12816,    to: 20818,   rate: 0.20 },
-  { from: 20818,    to: 34513,   rate: 0.30 },
-  { from: 34513,    to: 66612,   rate: 0.40 },
-  { from: 66612,    to: 99266,   rate: 0.48 },
-  { from: 99266,    to: 1000000, rate: 0.50 },
-  { from: 1000000,  to: Infinity,rate: 0.55 },
+  { from: 0, to: 12816, rate: 0.0 },
+  { from: 12816, to: 20818, rate: 0.2 },
+  { from: 20818, to: 34513, rate: 0.3 },
+  { from: 34513, to: 66612, rate: 0.4 },
+  { from: 66612, to: 99266, rate: 0.48 },
+  { from: 99266, to: 1000000, rate: 0.5 },
+  { from: 1000000, to: Infinity, rate: 0.55 },
 ];
 
 /**
@@ -57,13 +57,20 @@ export const FREIGRENZE = 730;
 export const EINSCHLEIF_ENDE = 1460; // 2 × Freigrenze
 
 export function estimateSideIncomeTax(settings, sideIncomeNet) {
-  if (sideIncomeNet <= 0) return { taxAmount: 0, effectiveRate: 0, marginalRate: 0, freigrenzeFree: FREIGRENZE, freigrenzePct: 0 };
+  if (sideIncomeNet <= 0)
+    return {
+      taxAmount: 0,
+      effectiveRate: 0,
+      marginalRate: 0,
+      freigrenzeFree: FREIGRENZE,
+      freigrenzePct: 0,
+    };
 
   const freigrenzeFree = Math.max(0, FREIGRENZE - sideIncomeNet);
-  const freigrenzePct  = Math.min(1, sideIncomeNet / FREIGRENZE);
+  const freigrenzePct = Math.min(1, sideIncomeNet / FREIGRENZE);
 
   if (!settings.useAutomaticTaxRate) {
-    const rate = settings.manualTaxRate ?? 0.40;
+    const rate = settings.manualTaxRate ?? 0.4;
     // Einschleifregelung auch bei manuellem Satz anwenden
     const fullTax = sideIncomeNet * rate;
     const taxAmount = _applyEinschleif(fullTax, sideIncomeNet);
@@ -76,21 +83,22 @@ export function estimateSideIncomeTax(settings, sideIncomeNet) {
     };
   }
 
-  const primaryGross  = settings.primaryIncomeGross ?? 46000;
-  const taxOnPrimary  = calcAustrianTax(primaryGross);
-  const taxOnTotal    = calcAustrianTax(primaryGross + sideIncomeNet);
-  const fullTax       = Math.max(0, taxOnTotal - taxOnPrimary);
-  const taxAmount     = _applyEinschleif(fullTax, sideIncomeNet);
+  const primaryGross = settings.primaryIncomeGross ?? 46000;
+  const taxOnPrimary = calcAustrianTax(primaryGross);
+  const taxOnTotal = calcAustrianTax(primaryGross + sideIncomeNet);
+  const fullTax = Math.max(0, taxOnTotal - taxOnPrimary);
+  const taxAmount = _applyEinschleif(fullTax, sideIncomeNet);
   const effectiveRate = taxAmount / sideIncomeNet;
-  const mRate         = marginalTaxRate(primaryGross);
+  const mRate = marginalTaxRate(primaryGross);
 
   return { taxAmount, effectiveRate, marginalRate: mRate, freigrenzeFree, freigrenzePct };
 }
 
 /** § 41 Abs. 3 EStG – Freigrenze + Einschleifregelung auf einen berechneten Steuerbetrag anwenden */
 function _applyEinschleif(fullTax, sideIncomeNet) {
-  if (sideIncomeNet <= FREIGRENZE)    return 0;
-  if (sideIncomeNet <= EINSCHLEIF_ENDE) return fullTax * (sideIncomeNet - FREIGRENZE) / FREIGRENZE;
+  if (sideIncomeNet <= FREIGRENZE) return 0;
+  if (sideIncomeNet <= EINSCHLEIF_ENDE)
+    return (fullTax * (sideIncomeNet - FREIGRENZE)) / FREIGRENZE;
   return fullTax;
 }
 
@@ -125,12 +133,12 @@ export function calcTaxableIncome(assignments, settings) {
 
 /** Alle Assignments eines Jahres */
 export function filterByYear(assignments, year) {
-  return assignments.filter(a => new Date(a.date).getFullYear() === year);
+  return assignments.filter((a) => new Date(a.date).getFullYear() === year);
 }
 
 /** Alle Assignments eines Monats (1-12) */
 export function filterByMonth(assignments, year, month) {
-  return assignments.filter(a => {
+  return assignments.filter((a) => {
     const d = new Date(a.date);
     return d.getFullYear() === year && d.getMonth() + 1 === month;
   });
@@ -152,7 +160,7 @@ export function monthlyStats(assignments, year) {
     const m = new Date(a.date).getMonth(); // 0-indexed
     months[m].count++;
     months[m].fee += a.fee ?? 0;
-    months[m].km  += a.km ?? 0;
+    months[m].km += a.km ?? 0;
     if (a.kmBillable) months[m].kmBillable += a.km ?? 0;
     if (a.status === 'completed') months[m].unpaid += a.fee ?? 0;
   }
@@ -167,8 +175,10 @@ export function yearStats(assignments, year, settings) {
   const tax = estimateSideIncomeTax(settings, taxableNet);
   const totalKm = aYear.reduce((s, a) => s + (a.km ?? 0), 0);
   const billableKm = aYear.reduce((s, a) => s + (a.kmBillable ? (a.km ?? 0) : 0), 0);
-  const unpaidFee = aYear.filter(a => a.status === 'completed').reduce((s, a) => s + (a.fee ?? 0), 0);
-  const reserve = totalFee * (settings.reserveRate ?? 0.40);
+  const unpaidFee = aYear
+    .filter((a) => a.status === 'completed')
+    .reduce((s, a) => s + (a.fee ?? 0), 0);
+  const reserve = totalFee * (settings.reserveRate ?? 0.4);
 
   return {
     year,
@@ -190,24 +200,26 @@ export function clientStats(assignments, clients, year, settings) {
   const aYear = year ? filterByYear(assignments, year) : assignments;
   const totalFee = aYear.reduce((s, a) => s + (a.fee ?? 0), 0);
 
-  return clients.map(client => {
-    const clientAssignments = aYear.filter(a => a.clientId === client.id);
-    const fee = clientAssignments.reduce((s, a) => s + (a.fee ?? 0), 0);
-    const km  = clientAssignments.reduce((s, a) => s + (a.km ?? 0), 0);
-    return {
-      client,
-      count: clientAssignments.length,
-      fee,
-      km,
-      avg: clientAssignments.length > 0 ? fee / clientAssignments.length : 0,
-      share: totalFee > 0 ? fee / totalFee : 0,
-    };
-  }).sort((a, b) => b.fee - a.fee);
+  return clients
+    .map((client) => {
+      const clientAssignments = aYear.filter((a) => a.clientId === client.id);
+      const fee = clientAssignments.reduce((s, a) => s + (a.fee ?? 0), 0);
+      const km = clientAssignments.reduce((s, a) => s + (a.km ?? 0), 0);
+      return {
+        client,
+        count: clientAssignments.length,
+        fee,
+        km,
+        avg: clientAssignments.length > 0 ? fee / clientAssignments.length : 0,
+        share: totalFee > 0 ? fee / totalFee : 0,
+      };
+    })
+    .sort((a, b) => b.fee - a.fee);
 }
 
 /** Alle verfügbaren Jahre aus den Assignments */
 export function availableYears(assignments) {
-  const years = new Set(assignments.map(a => new Date(a.date).getFullYear()));
+  const years = new Set(assignments.map((a) => new Date(a.date).getFullYear()));
   const sorted = [...years].sort((a, b) => b - a);
   if (!sorted.includes(new Date().getFullYear())) {
     sorted.unshift(new Date().getFullYear());
@@ -234,14 +246,17 @@ export function formatPercent(rate) {
 export function formatDate(dateStr) {
   if (!dateStr) return '–';
   return new Date(dateStr).toLocaleDateString('de-AT', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
   });
 }
 
 export function formatDateShort(dateStr) {
   if (!dateStr) return '–';
   return new Date(dateStr).toLocaleDateString('de-AT', {
-    day: '2-digit', month: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
   });
 }
 

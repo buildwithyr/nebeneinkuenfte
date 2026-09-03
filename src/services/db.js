@@ -92,12 +92,17 @@ export const db = {
   // So gehen offline erfasste Änderungen nicht durch den Remote-Overwrite verloren.
 
   _loadPending() {
-    try { return JSON.parse(localStorage.getItem(PENDING_KEY)) ?? []; }
-    catch { return []; }
+    try {
+      return JSON.parse(localStorage.getItem(PENDING_KEY)) ?? [];
+    } catch {
+      return [];
+    }
   },
 
   _savePending(queue) {
-    try { localStorage.setItem(PENDING_KEY, JSON.stringify(queue)); } catch {}
+    try {
+      localStorage.setItem(PENDING_KEY, JSON.stringify(queue));
+    } catch {}
   },
 
   _enqueue(op) {
@@ -120,7 +125,11 @@ export const db = {
         res = await supabase.from('assignments').upsert(_assignmentToRow(op.payload, userId));
         break;
       case 'deleteAssignment':
-        res = await supabase.from('assignments').delete().eq('id', op.payload).eq('user_id', userId);
+        res = await supabase
+          .from('assignments')
+          .delete()
+          .eq('id', op.payload)
+          .eq('user_id', userId);
         break;
       case 'saveSettings':
         res = await supabase.from('user_settings').upsert({
@@ -165,8 +174,10 @@ export const db = {
       supabase.from('user_settings').select('settings').eq('user_id', this._userId).maybeSingle(),
     ]);
 
-    if (clientsRes.error) throw new Error('Clients laden fehlgeschlagen: ' + clientsRes.error.message);
-    if (assignmentsRes.error) throw new Error('Aufträge laden fehlgeschlagen: ' + assignmentsRes.error.message);
+    if (clientsRes.error)
+      throw new Error('Clients laden fehlgeschlagen: ' + clientsRes.error.message);
+    if (assignmentsRes.error)
+      throw new Error('Aufträge laden fehlgeschlagen: ' + assignmentsRes.error.message);
 
     return {
       clients: (clientsRes.data ?? []).map(_rowToClient),
@@ -180,8 +191,8 @@ export const db = {
     if (!this._userId) return;
     const userId = this._userId;
     await Promise.all([
-      supabase.from('clients').upsert(clients.map(c => _clientToRow(c, userId))),
-      supabase.from('assignments').upsert(assignments.map(a => _assignmentToRow(a, userId))),
+      supabase.from('clients').upsert(clients.map((c) => _clientToRow(c, userId))),
+      supabase.from('assignments').upsert(assignments.map((a) => _assignmentToRow(a, userId))),
       supabase.from('user_settings').upsert({
         user_id: userId,
         settings: _sanitizeSettings(settings),
@@ -241,28 +252,36 @@ export const db = {
 
     this._channel = supabase
       .channel('db-changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'clients',
-        filter: `user_id=eq.${userId}`,
-      }, (payload) => {
-        onClient({
-          type: payload.eventType,
-          record: payload.eventType === 'DELETE' ? payload.old : _rowToClient(payload.new),
-        });
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'assignments',
-        filter: `user_id=eq.${userId}`,
-      }, (payload) => {
-        onAssignment({
-          type: payload.eventType,
-          record: payload.eventType === 'DELETE' ? payload.old : _rowToAssignment(payload.new),
-        });
-      })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'clients',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          onClient({
+            type: payload.eventType,
+            record: payload.eventType === 'DELETE' ? payload.old : _rowToClient(payload.new),
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'assignments',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          onAssignment({
+            type: payload.eventType,
+            record: payload.eventType === 'DELETE' ? payload.old : _rowToAssignment(payload.new),
+          });
+        }
+      )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           console.log('[DB] Realtime verbunden ✓');

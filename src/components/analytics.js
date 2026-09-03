@@ -5,8 +5,16 @@
 
 import { store } from '../services/store.js';
 import {
-  yearStats, monthlyStats, clientStats, availableYears,
-  formatCurrency, formatKm, formatPercent, formatDate, filterByYear, escapeHtml,
+  yearStats,
+  monthlyStats,
+  clientStats,
+  availableYears,
+  formatCurrency,
+  formatKm,
+  formatPercent,
+  formatDate,
+  filterByYear,
+  escapeHtml,
 } from '../services/calculations.js';
 
 let activeTab = 'year';
@@ -18,13 +26,19 @@ export function renderAnalytics(container) {
   registerMarkPaidListener();
   _render(container);
   const u1 = store.on('assignments', () => _render(container));
-  const u2 = store.on('settings',    () => _render(container));
-  container._analyticsUnsub = () => { u1(); u2(); };
+  const u2 = store.on('settings', () => _render(container));
+  container._analyticsUnsub = () => {
+    u1();
+    u2();
+  };
 }
 
 export function destroyAnalytics(container) {
   container._analyticsUnsub?.();
-  if (chartPie) { chartPie.destroy(); chartPie = null; }
+  if (chartPie) {
+    chartPie.destroy();
+    chartPie = null;
+  }
   if (_markPaidHandler) {
     document.removeEventListener('click', _markPaidHandler);
     _markPaidHandler = null;
@@ -43,15 +57,15 @@ function _render(container) {
 
     <!-- Tabs -->
     <div class="tabs">
-      <button class="tab-btn ${activeTab==='year' ? 'active' : ''}" data-tab="year">Jahres</button>
-      <button class="tab-btn ${activeTab==='month' ? 'active' : ''}" data-tab="month">Monate</button>
-      <button class="tab-btn ${activeTab==='client' ? 'active' : ''}" data-tab="client">Auftraggeber</button>
-      <button class="tab-btn ${activeTab==='unpaid' ? 'active' : ''}" data-tab="unpaid">Offen</button>
+      <button class="tab-btn ${activeTab === 'year' ? 'active' : ''}" data-tab="year">Jahres</button>
+      <button class="tab-btn ${activeTab === 'month' ? 'active' : ''}" data-tab="month">Monate</button>
+      <button class="tab-btn ${activeTab === 'client' ? 'active' : ''}" data-tab="client">Auftraggeber</button>
+      <button class="tab-btn ${activeTab === 'unpaid' ? 'active' : ''}" data-tab="unpaid">Offen</button>
     </div>
 
     <!-- Jahr-Auswahl -->
     <div class="filter-bar mb-4">
-      ${years.map(y => `<button class="filter-chip ${y === selectedYear ? 'active' : ''}" data-year="${y}">${y}</button>`).join('')}
+      ${years.map((y) => `<button class="filter-chip ${y === selectedYear ? 'active' : ''}" data-year="${y}">${y}</button>`).join('')}
     </div>
 
     <div id="analytics-content">
@@ -83,11 +97,16 @@ function _render(container) {
 
 function _renderTab(tab, assignments, clients, settings, year, sym) {
   switch (tab) {
-    case 'year':   return _renderYear(assignments, clients, settings, year, sym);
-    case 'month':  return _renderMonths(assignments, settings, year, sym);
-    case 'client': return _renderClients(assignments, clients, settings, year, sym);
-    case 'unpaid': return _renderUnpaid(assignments, clients, settings, sym);
-    default:       return '';
+    case 'year':
+      return _renderYear(assignments, clients, settings, year, sym);
+    case 'month':
+      return _renderMonths(assignments, settings, year, sym);
+    case 'client':
+      return _renderClients(assignments, clients, settings, year, sym);
+    case 'unpaid':
+      return _renderUnpaid(assignments, clients, settings, sym);
+    default:
+      return '';
   }
 }
 
@@ -164,51 +183,66 @@ function _renderYear(assignments, clients, settings, year, sym) {
 
 function _renderMonths(assignments, settings, year, sym) {
   const monthly = monthlyStats(assignments, year);
-  const total   = monthly.reduce((s, m) => s + m.fee, 0);
+  const total = monthly.reduce((s, m) => s + m.fee, 0);
 
   return `
     <div class="card">
       <div class="section-title mb-3">Monatliche Einnahmen ${year}</div>
-      ${monthly.map(m => `
+      ${monthly
+        .map(
+          (m) => `
         <div class="stat-row">
           <div style="flex:1">
             <div style="display:flex;justify-content:space-between;margin-bottom:4px">
               <span class="stat-row-label" style="font-weight:600;color:var(--text-primary)">${m.label}</span>
               <span class="stat-row-value ${m.fee > 0 ? 'accent' : 'muted'}">${m.fee > 0 ? _fmt(m.fee, sym) : '–'}</span>
             </div>
-            ${m.count > 0 ? `
+            ${
+              m.count > 0
+                ? `
               <div class="progress-bar">
-                <div class="progress-fill" style="width:${total > 0 ? (m.fee/total*100).toFixed(1) : 0}%"></div>
+                <div class="progress-fill" style="width:${total > 0 ? ((m.fee / total) * 100).toFixed(1) : 0}%"></div>
               </div>
               <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">
                 ${m.count} Aufträge · ${m.km > 0 ? m.km + ' km' : ''}
                 ${m.unpaid > 0 ? `· <span style="color:var(--warning)">${_fmt(m.unpaid, sym)} offen</span>` : ''}
               </div>
-            ` : ''}
+            `
+                : ''
+            }
           </div>
         </div>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
   `;
 }
 
 function _renderClients(assignments, clients, settings, year, sym) {
   const stats = clientStats(assignments, clients, year, settings);
-  const active = stats.filter(s => s.count > 0);
+  const active = stats.filter((s) => s.count > 0);
 
   return `
-    ${active.length > 0 ? `
+    ${
+      active.length > 0
+        ? `
       <div class="card mb-4">
         <div class="chart-container">
           <canvas id="analytics-pie"></canvas>
         </div>
       </div>
-    ` : ''}
+    `
+        : ''
+    }
     <div class="card">
       <div class="section-title mb-3">Auftraggeber ${year}</div>
-      ${stats.length === 0
-        ? '<div class="empty-state"><div class="empty-icon">🏢</div><div class="empty-title">Keine Daten</div></div>'
-        : stats.map(cs => `
+      ${
+        stats.length === 0
+          ? '<div class="empty-state"><div class="empty-icon">🏢</div><div class="empty-title">Keine Daten</div></div>'
+          : stats
+              .map(
+                (cs) => `
         <div class="stat-row">
           <div style="flex:1">
             <div style="display:flex;justify-content:space-between;margin-bottom:2px">
@@ -220,22 +254,29 @@ function _renderClients(assignments, clients, settings, year, sym) {
               ${cs.count > 0 ? `<span>· Ø ${_fmt(cs.avg, sym)}</span>` : ''}
               ${cs.km > 0 ? `<span>· ${cs.km} km</span>` : ''}
             </div>
-            ${cs.count > 0 ? `
+            ${
+              cs.count > 0
+                ? `
               <div class="progress-bar">
-                <div class="progress-fill" style="width:${(cs.share*100).toFixed(1)}%;background:${_clientColor(clients.indexOf(cs.client))}"></div>
+                <div class="progress-fill" style="width:${(cs.share * 100).toFixed(1)}%;background:${_clientColor(clients.indexOf(cs.client))}"></div>
               </div>
-            ` : ''}
+            `
+                : ''
+            }
           </div>
         </div>
-      `).join('')}
+      `
+              )
+              .join('')
+      }
     </div>
   `;
 }
 
 function _renderUnpaid(assignments, clients, settings, sym) {
-  const clientMap = Object.fromEntries(clients.map(c => [c.id, c.name]));
+  const clientMap = Object.fromEntries(clients.map((c) => [c.id, c.name]));
   const unpaid = [...assignments]
-    .filter(a => a.status === 'completed')
+    .filter((a) => a.status === 'completed')
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const totalUnpaid = unpaid.reduce((s, a) => s + (a.fee ?? 0), 0);
@@ -254,7 +295,9 @@ function _renderUnpaid(assignments, clients, settings, sym) {
       <span>${unpaid.length} Aufträge erledigt, Zahlung ausstehend · Gesamt: ${_fmt(totalUnpaid, sym)}</span>
     </div>
     <div class="list">
-      ${unpaid.map(a => `
+      ${unpaid
+        .map(
+          (a) => `
         <div class="list-item">
           <div class="list-item-main">
             <div class="list-item-title">${_esc(a.description || clientMap[a.clientId] || '–')}</div>
@@ -271,7 +314,9 @@ function _renderUnpaid(assignments, clients, settings, sym) {
             <button class="btn btn-success btn-sm mt-1" data-mark-paid="${a.id}">✓ Bezahlt</button>
           </div>
         </div>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
   `;
 }
@@ -279,10 +324,13 @@ function _renderUnpaid(assignments, clients, settings, sym) {
 function _drawPieChart(assignments, clients, year) {
   const canvas = document.getElementById('analytics-pie');
   if (!canvas) return;
-  if (chartPie) { chartPie.destroy(); chartPie = null; }
+  if (chartPie) {
+    chartPie.destroy();
+    chartPie = null;
+  }
 
   const stats = clientStats(assignments, clients, year, store.settings);
-  const active = stats.filter(s => s.count > 0);
+  const active = stats.filter((s) => s.count > 0);
   if (!active.length) return;
 
   const colors = active.map((_, i) => _clientColor(i));
@@ -290,13 +338,15 @@ function _drawPieChart(assignments, clients, year) {
   chartPie = new Chart(canvas, {
     type: 'doughnut',
     data: {
-      labels: active.map(s => s.client.name),
-      datasets: [{
-        data: active.map(s => s.fee),
-        backgroundColor: colors,
-        borderWidth: 2,
-        borderColor: document.documentElement.dataset.theme === 'light' ? '#fff' : '#0D1B2A',
-      }],
+      labels: active.map((s) => s.client.name),
+      datasets: [
+        {
+          data: active.map((s) => s.fee),
+          backgroundColor: colors,
+          borderWidth: 2,
+          borderColor: document.documentElement.dataset.theme === 'light' ? '#fff' : '#0D1B2A',
+        },
+      ],
     },
     options: {
       responsive: true,
@@ -324,8 +374,10 @@ function _drawPieChart(assignments, clients, year) {
   });
 }
 
-const CHART_COLORS = ['#00B4D8','#06D6A0','#FFB703','#EF476F','#118AB2','#7B2FBE','#F4A261'];
-function _clientColor(idx) { return CHART_COLORS[idx % CHART_COLORS.length]; }
+const CHART_COLORS = ['#00B4D8', '#06D6A0', '#FFB703', '#EF476F', '#118AB2', '#7B2FBE', '#F4A261'];
+function _clientColor(idx) {
+  return CHART_COLORS[idx % CHART_COLORS.length];
+}
 
 const _fmt = formatCurrency;
 const _esc = escapeHtml;

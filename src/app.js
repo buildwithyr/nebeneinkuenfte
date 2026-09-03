@@ -12,11 +12,11 @@ import { db } from './services/db.js';
  * der Service Worker kann dieses Modul nicht importieren.
  */
 export const APP_VERSION = '2.4.0';
-import { renderDashboard,   destroyDashboard }   from './components/dashboard.js';
+import { renderDashboard, destroyDashboard } from './components/dashboard.js';
 import { renderAssignments, destroyAssignments } from './components/assignments.js';
-import { renderClients,     destroyClients }     from './components/clients.js';
-import { renderAnalytics,   destroyAnalytics }   from './components/analytics.js';
-import { renderSettings,    destroySettings }    from './components/settings.js';
+import { renderClients, destroyClients } from './components/clients.js';
+import { renderAnalytics, destroyAnalytics } from './components/analytics.js';
+import { renderSettings, destroySettings } from './components/settings.js';
 
 // ---- Toast ----
 export function showToast(message, type = 'info', duration = 3500) {
@@ -37,11 +37,11 @@ export function showToast(message, type = 'info', duration = 3500) {
 
 // ---- Routing ----
 const VIEWS = {
-  dashboard:   { render: renderDashboard,   destroy: destroyDashboard   },
+  dashboard: { render: renderDashboard, destroy: destroyDashboard },
   assignments: { render: renderAssignments, destroy: destroyAssignments },
-  clients:     { render: renderClients,     destroy: destroyClients     },
-  analytics:   { render: renderAnalytics,   destroy: destroyAnalytics   },
-  settings:    { render: renderSettings,    destroy: destroySettings    },
+  clients: { render: renderClients, destroy: destroyClients },
+  analytics: { render: renderAnalytics, destroy: destroyAnalytics },
+  settings: { render: renderSettings, destroy: destroySettings },
 };
 
 let currentView = null;
@@ -56,7 +56,7 @@ export function navigate(viewName) {
 
   currentView = viewName;
 
-  document.querySelectorAll('.nav-item').forEach(el => {
+  document.querySelectorAll('.nav-item').forEach((el) => {
     el.classList.toggle('active', el.dataset.view === viewName);
   });
 
@@ -84,16 +84,16 @@ function _hideLoginScreen() {
 }
 
 function _attachLoginListeners() {
-  const emailInput    = document.getElementById('login-email');
+  const emailInput = document.getElementById('login-email');
   const passwordInput = document.getElementById('login-password');
-  const loginBtn      = document.getElementById('login-btn');
-  const signupBtn     = document.getElementById('signup-btn');
-  const errorEl       = document.getElementById('login-error');
+  const loginBtn = document.getElementById('login-btn');
+  const signupBtn = document.getElementById('signup-btn');
+  const errorEl = document.getElementById('login-error');
 
   function _setLoading(loading) {
-    loginBtn.disabled  = loading;
+    loginBtn.disabled = loading;
     signupBtn.disabled = loading;
-    loginBtn.textContent  = loading ? '⏳ Bitte warten…' : 'Anmelden';
+    loginBtn.textContent = loading ? '⏳ Bitte warten…' : 'Anmelden';
   }
 
   function _showError(msg) {
@@ -106,9 +106,12 @@ function _attachLoginListeners() {
   }
 
   loginBtn.addEventListener('click', async () => {
-    const email    = emailInput.value.trim();
+    const email = emailInput.value.trim();
     const password = passwordInput.value;
-    if (!email || !password) { _showError('Bitte E-Mail und Passwort eingeben.'); return; }
+    if (!email || !password) {
+      _showError('Bitte E-Mail und Passwort eingeben.');
+      return;
+    }
 
     _clearError();
     _setLoading(true);
@@ -116,18 +119,26 @@ function _attachLoginListeners() {
     _setLoading(false);
 
     if (error) {
-      _showError(error.message === 'Invalid login credentials'
-        ? 'Falsche E-Mail oder falsches Passwort.'
-        : error.message);
+      _showError(
+        error.message === 'Invalid login credentials'
+          ? 'Falsche E-Mail oder falsches Passwort.'
+          : error.message
+      );
     }
     // Erfolg: onAuthStateChange übernimmt das Weiterleiten
   });
 
   signupBtn.addEventListener('click', async () => {
-    const email    = emailInput.value.trim();
+    const email = emailInput.value.trim();
     const password = passwordInput.value;
-    if (!email || !password) { _showError('Bitte E-Mail und Passwort eingeben.'); return; }
-    if (password.length < 6) { _showError('Passwort muss mindestens 6 Zeichen haben.'); return; }
+    if (!email || !password) {
+      _showError('Bitte E-Mail und Passwort eingeben.');
+      return;
+    }
+    if (password.length < 6) {
+      _showError('Passwort muss mindestens 6 Zeichen haben.');
+      return;
+    }
 
     _clearError();
     _setLoading(true);
@@ -145,8 +156,10 @@ function _attachLoginListeners() {
   });
 
   // Enter-Taste → Login
-  [emailInput, passwordInput].forEach(el => {
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginBtn.click(); });
+  [emailInput, passwordInput].forEach((el) => {
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') loginBtn.click();
+    });
   });
 }
 
@@ -182,20 +195,23 @@ async function _initApp(user) {
       await db.pushAll(local.clients, local.assignments, local.settings);
     }
   } catch (err) {
-    console.warn('[App] Supabase-Daten konnten nicht geladen werden, nutze lokale Daten:', err.message);
+    console.warn(
+      '[App] Supabase-Daten konnten nicht geladen werden, nutze lokale Daten:',
+      err.message
+    );
     showToast('Offline-Modus – Daten werden lokal gespeichert', 'info');
   }
 
   // Sync-Hooks einrichten: jede lokale Änderung → Supabase
   store.enableSync({
-    onClientChange:     (c, del) => del ? db.deleteClient(c.id)     : db.upsertClient(c),
-    onAssignmentChange: (a, del) => del ? db.deleteAssignment(a.id) : db.upsertAssignment(a),
-    onSettingsChange:   (s)      => db.saveSettings(s),
+    onClientChange: (c, del) => (del ? db.deleteClient(c.id) : db.upsertClient(c)),
+    onAssignmentChange: (a, del) => (del ? db.deleteAssignment(a.id) : db.upsertAssignment(a)),
+    onSettingsChange: (s) => db.saveSettings(s),
   });
 
   // Realtime: Änderungen von anderen Geräten empfangen
   db.subscribeRealtime({
-    onClient:     (payload) => store.applyRealtimeClient(payload),
+    onClient: (payload) => store.applyRealtimeClient(payload),
     onAssignment: (payload) => store.applyRealtimeAssignment(payload),
   });
 
@@ -245,14 +261,16 @@ function _setupResumeSync() {
   document.addEventListener('visibilitychange', onResume);
   window.addEventListener('focus', onResume);
   window.addEventListener('pageshow', onResume);
-  window.addEventListener('online', () => { _resume(); });
+  window.addEventListener('online', () => {
+    _resume();
+  });
 }
 
 // ---- Pull-to-Refresh ----
 
 function _setupPullToRefresh() {
   const appContent = document.getElementById('app-content');
-  const indicator  = document.getElementById('pull-indicator');
+  const indicator = document.getElementById('pull-indicator');
   if (!appContent || !indicator) return;
 
   const THRESHOLD = 72;
@@ -260,24 +278,32 @@ function _setupPullToRefresh() {
   let pulling = false;
   let triggered = false;
 
-  appContent.addEventListener('touchstart', (e) => {
-    if (appContent.scrollTop > 0) return;
-    startY   = e.touches[0].clientY;
-    pulling  = true;
-    triggered = false;
-  }, { passive: true });
+  appContent.addEventListener(
+    'touchstart',
+    (e) => {
+      if (appContent.scrollTop > 0) return;
+      startY = e.touches[0].clientY;
+      pulling = true;
+      triggered = false;
+    },
+    { passive: true }
+  );
 
-  appContent.addEventListener('touchmove', (e) => {
-    if (!pulling || appContent.scrollTop > 0) return;
-    const delta = e.touches[0].clientY - startY;
-    if (delta <= 0) return;
+  appContent.addEventListener(
+    'touchmove',
+    (e) => {
+      if (!pulling || appContent.scrollTop > 0) return;
+      const delta = e.touches[0].clientY - startY;
+      if (delta <= 0) return;
 
-    const progress = Math.min(delta / THRESHOLD, 1);
-    const translateY = Math.min(delta * 0.45, THRESHOLD * 0.55);
-    indicator.style.transform = `translateY(${translateY}px)`;
-    indicator.style.opacity   = String(progress);
-    indicator.classList.toggle('ready', progress >= 1);
-  }, { passive: true });
+      const progress = Math.min(delta / THRESHOLD, 1);
+      const translateY = Math.min(delta * 0.45, THRESHOLD * 0.55);
+      indicator.style.transform = `translateY(${translateY}px)`;
+      indicator.style.opacity = String(progress);
+      indicator.classList.toggle('ready', progress >= 1);
+    },
+    { passive: true }
+  );
 
   appContent.addEventListener('touchend', async () => {
     if (!pulling) return;
@@ -288,7 +314,7 @@ function _setupPullToRefresh() {
 
     if (!isReady || triggered) {
       indicator.style.transform = '';
-      indicator.style.opacity   = '0';
+      indicator.style.opacity = '0';
       return;
     }
 
@@ -301,12 +327,12 @@ function _setupPullToRefresh() {
 
     indicator.classList.remove('loading');
     indicator.style.transform = '';
-    indicator.style.opacity   = '0';
+    indicator.style.opacity = '0';
   });
 }
 
 function _setupNavigation() {
-  document.querySelectorAll('.nav-item').forEach(btn => {
+  document.querySelectorAll('.nav-item').forEach((btn) => {
     btn.addEventListener('click', () => navigate(btn.dataset.view));
   });
 
@@ -418,7 +444,9 @@ async function _registerSW() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Auth-Status prüfen
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
   if (session) {
     await _initApp(session.user);

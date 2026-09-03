@@ -8,9 +8,12 @@ import { escapeHtml } from '../services/calculations.js';
 
 export function renderClients(container) {
   _render(container);
-  const u1 = store.on('clients',     () => _render(container));
+  const u1 = store.on('clients', () => _render(container));
   const u2 = store.on('assignments', () => _render(container));
-  container._clientsUnsub = () => { u1(); u2(); };
+  container._clientsUnsub = () => {
+    u1();
+    u2();
+  };
 }
 
 export function destroyClients(container) {
@@ -42,12 +45,13 @@ function _render(container) {
     </div>
 
     <div class="list" id="cl-list">
-      ${sorted.length === 0
-        ? `<div class="empty-state">
+      ${
+        sorted.length === 0
+          ? `<div class="empty-state">
             <div class="empty-icon">🏢</div>
             <div class="empty-title">Keine Auftraggeber</div>
            </div>`
-        : sorted.map(c => _renderItem(c, countMap[c.id] ?? 0, feeMap[c.id] ?? 0)).join('')
+          : sorted.map((c) => _renderItem(c, countMap[c.id] ?? 0, feeMap[c.id] ?? 0)).join('')
       }
     </div>
 
@@ -100,23 +104,25 @@ function _renderItem(c, count, fee) {
           ${c.note ? `· ${_esc(c.note)}` : ''}
         </div>
         <div class="mt-1">
-          ${c.active
-            ? '<span class="badge badge-success">Aktiv</span>'
-            : '<span class="badge badge-muted">Inaktiv</span>'}
+          ${
+            c.active
+              ? '<span class="badge badge-success">Aktiv</span>'
+              : '<span class="badge badge-muted">Inaktiv</span>'
+          }
         </div>
       </div>
-      <div class="list-item-value">${sym} ${fee.toLocaleString('de-AT', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+      <div class="list-item-value">${sym} ${fee.toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
     </div>
   `;
 }
 
 function _attachListeners(container) {
-  const backdrop   = container.querySelector('#cl-modal-backdrop');
-  const modal      = container.querySelector('#cl-modal');
-  const form       = container.querySelector('#cl-form');
-  const title      = container.querySelector('#cl-modal-title');
+  const backdrop = container.querySelector('#cl-modal-backdrop');
+  const modal = container.querySelector('#cl-modal');
+  const form = container.querySelector('#cl-form');
+  const title = container.querySelector('#cl-modal-title');
   const deleteZone = container.querySelector('#cl-delete-zone');
-  let editingId    = null;
+  let editingId = null;
 
   function openModal(clientId) {
     editingId = clientId ?? null;
@@ -126,8 +132,8 @@ function _attachListeners(container) {
     if (editingId) {
       const c = store.getClient(editingId);
       if (c) {
-        form.querySelector('[name="name"]').value  = c.name ?? '';
-        form.querySelector('[name="note"]').value  = c.note ?? '';
+        form.querySelector('[name="name"]').value = c.name ?? '';
+        form.querySelector('[name="note"]').value = c.note ?? '';
         form.querySelector('[name="active"]').checked = c.active !== false;
       }
     } else {
@@ -152,11 +158,13 @@ function _attachListeners(container) {
 
   container.querySelector('#cl-add-btn').addEventListener('click', () => openModal(null));
   container.querySelector('#cl-cancel').addEventListener('click', closeModal);
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeModal(); });
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) closeModal();
+  });
 
   container.querySelector('#cl-delete').addEventListener('click', () => {
     if (!editingId) return;
-    const hasAssignments = store.assignments.some(a => a.clientId === editingId);
+    const hasAssignments = store.assignments.some((a) => a.clientId === editingId);
     if (hasAssignments) {
       showToast('Auftraggeber hat Aufträge – erst Aufträge entfernen oder umweisen.', 'error');
       return;
@@ -171,12 +179,15 @@ function _attachListeners(container) {
     e.preventDefault();
     const fd = new FormData(form);
     const data = {
-      name:   fd.get('name')?.trim(),
-      note:   fd.get('note')?.trim() ?? '',
+      name: fd.get('name')?.trim(),
+      note: fd.get('note')?.trim() ?? '',
       active: form.querySelector('[name="active"]').checked,
     };
 
-    if (!data.name) { showToast('Bitte Namen eingeben', 'error'); return; }
+    if (!data.name) {
+      showToast('Bitte Namen eingeben', 'error');
+      return;
+    }
 
     if (editingId) {
       store.updateClient(editingId, data);

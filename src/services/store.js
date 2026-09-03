@@ -10,11 +10,11 @@ import { storage } from './storage.js';
 const DEFAULT_SETTINGS = {
   currency: 'EUR',
   currencySymbol: '€',
-  kmRate: 0.42,           // Kilometergeld Österreich 2024/2025
-  reserveRate: 0.40,      // Empfohlene Steuerrücklage (40%)
+  kmRate: 0.42, // Kilometergeld Österreich 2024/2025
+  reserveRate: 0.4, // Empfohlene Steuerrücklage (40%)
   primaryIncomeGross: 46000, // Bruttogehalt Hauptberuf (Schätzung aus 33k netto)
   useAutomaticTaxRate: true, // Österreichischer Grenzsteuersatz automatisch
-  manualTaxRate: 0.40,    // Manuell überschreibbarer Steuersatz
+  manualTaxRate: 0.4, // Manuell überschreibbarer Steuersatz
   theme: 'dark',
   gistId: '',
   gistToken: '',
@@ -22,11 +22,41 @@ const DEFAULT_SETTINGS = {
 };
 
 const DEFAULT_CLIENTS = [
-  { id: 'client-1', name: 'Whitebox', note: 'IQOS Mystery Shopping', active: true, createdAt: '2024-01-01T00:00:00.000Z' },
-  { id: 'client-2', name: 'Langl & Partner', note: '', active: true, createdAt: '2024-01-01T00:00:00.000Z' },
-  { id: 'client-3', name: 'Concertare', note: '', active: true, createdAt: '2024-01-01T00:00:00.000Z' },
-  { id: 'client-4', name: 'Market Mind', note: 'Online-Diskussionen, Umfragen', active: true, createdAt: '2024-01-01T00:00:00.000Z' },
-  { id: 'client-5', name: 'Mystery Agency', note: '', active: true, createdAt: '2024-01-01T00:00:00.000Z' },
+  {
+    id: 'client-1',
+    name: 'Whitebox',
+    note: 'IQOS Mystery Shopping',
+    active: true,
+    createdAt: '2024-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'client-2',
+    name: 'Langl & Partner',
+    note: '',
+    active: true,
+    createdAt: '2024-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'client-3',
+    name: 'Concertare',
+    note: '',
+    active: true,
+    createdAt: '2024-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'client-4',
+    name: 'Market Mind',
+    note: 'Online-Diskussionen, Umfragen',
+    active: true,
+    createdAt: '2024-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'client-5',
+    name: 'Mystery Agency',
+    note: '',
+    active: true,
+    createdAt: '2024-01-01T00:00:00.000Z',
+  },
 ];
 
 class Store {
@@ -71,17 +101,25 @@ class Store {
 
   // ---- Getters ----
 
-  get settings() { return this._data.settings; }
-  get clients()   { return this._data.clients; }
-  get assignments() { return this._data.assignments; }
-  get meta()      { return this._data.meta; }
+  get settings() {
+    return this._data.settings;
+  }
+  get clients() {
+    return this._data.clients;
+  }
+  get assignments() {
+    return this._data.assignments;
+  }
+  get meta() {
+    return this._data.meta;
+  }
 
   getClient(id) {
-    return this._data.clients.find(c => c.id === id) ?? null;
+    return this._data.clients.find((c) => c.id === id) ?? null;
   }
 
   getAssignment(id) {
-    return this._data.assignments.find(a => a.id === id) ?? null;
+    return this._data.assignments.find((a) => a.id === id) ?? null;
   }
 
   /** Rohes Datenobjekt für Export/Sync */
@@ -115,7 +153,7 @@ class Store {
   }
 
   updateClient(id, patch) {
-    const idx = this._data.clients.findIndex(c => c.id === id);
+    const idx = this._data.clients.findIndex((c) => c.id === id);
     if (idx === -1) return false;
     this._data.clients[idx] = { ...this._data.clients[idx], ...patch };
     this._save();
@@ -126,7 +164,7 @@ class Store {
 
   deleteClient(id) {
     this._syncHooks?.onClientChange?.({ id }, true);
-    this._data.clients = this._data.clients.filter(c => c.id !== id);
+    this._data.clients = this._data.clients.filter((c) => c.id !== id);
     this._save();
     this._emit('clients');
   }
@@ -152,7 +190,7 @@ class Store {
   }
 
   updateAssignment(id, patch) {
-    const idx = this._data.assignments.findIndex(a => a.id === id);
+    const idx = this._data.assignments.findIndex((a) => a.id === id);
     if (idx === -1) return false;
     this._data.assignments[idx] = {
       ...this._data.assignments[idx],
@@ -175,7 +213,7 @@ class Store {
 
   deleteAssignment(id) {
     this._syncHooks?.onAssignmentChange?.({ id }, true);
-    this._data.assignments = this._data.assignments.filter(a => a.id !== id);
+    this._data.assignments = this._data.assignments.filter((a) => a.id !== id);
     this._save();
     this._emit('assignments');
   }
@@ -217,14 +255,15 @@ class Store {
   applyRealtimeClient({ type, record }) {
     if (type === 'DELETE') {
       const before = this._data.clients.length;
-      this._data.clients = this._data.clients.filter(c => c.id !== record.id);
+      this._data.clients = this._data.clients.filter((c) => c.id !== record.id);
       if (this._data.clients.length === before) return; // schon weg → Echo, ignorieren
     } else {
-      const idx = this._data.clients.findIndex(c => c.id === record.id);
+      const idx = this._data.clients.findIndex((c) => c.id === record.id);
       if (idx >= 0) {
         const cur = this._data.clients[idx];
         // Echo der eigenen Änderung? Inhaltlich identisch → kein Re-render.
-        if (cur.name === record.name && cur.note === record.note && cur.active === record.active) return;
+        if (cur.name === record.name && cur.note === record.note && cur.active === record.active)
+          return;
         this._data.clients[idx] = { ...cur, ...record };
       } else {
         this._data.clients.push(record);
@@ -237,10 +276,10 @@ class Store {
   applyRealtimeAssignment({ type, record }) {
     if (type === 'DELETE') {
       const before = this._data.assignments.length;
-      this._data.assignments = this._data.assignments.filter(a => a.id !== record.id);
+      this._data.assignments = this._data.assignments.filter((a) => a.id !== record.id);
       if (this._data.assignments.length === before) return; // schon weg → Echo, ignorieren
     } else {
-      const idx = this._data.assignments.findIndex(a => a.id === record.id);
+      const idx = this._data.assignments.findIndex((a) => a.id === record.id);
       if (idx >= 0) {
         // Echo der eigenen Änderung? Gleicher updatedAt-Stand → kein Re-render.
         if (this._data.assignments[idx].updatedAt === record.updatedAt) return;
@@ -258,12 +297,14 @@ class Store {
   on(event, fn) {
     if (!this._listeners[event]) this._listeners[event] = [];
     this._listeners[event].push(fn);
-    return () => { this._listeners[event] = this._listeners[event].filter(f => f !== fn); };
+    return () => {
+      this._listeners[event] = this._listeners[event].filter((f) => f !== fn);
+    };
   }
 
   _emit(event) {
-    (this._listeners[event] ?? []).forEach(fn => fn());
-    (this._listeners['*'] ?? []).forEach(fn => fn(event));
+    (this._listeners[event] ?? []).forEach((fn) => fn());
+    (this._listeners['*'] ?? []).forEach((fn) => fn(event));
   }
 
   // ---- Helpers ----
