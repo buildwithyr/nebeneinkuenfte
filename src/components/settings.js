@@ -74,7 +74,7 @@ function _render(container) {
           </div>
           <div style="display:flex;align-items:center;gap:4px">
             <input class="settings-input" type="number" id="s-manual-rate"
-              value="${((settings.manualTaxRate ?? 0.40) * 100).toFixed(0)}" min="0" max="100" step="1">
+              value="${((settings.manualTaxRate ?? 0.4) * 100).toFixed(0)}" min="0" max="100" step="1">
             <span style="color:var(--text-muted);font-size:0.875rem">%</span>
           </div>
         </div>
@@ -86,7 +86,7 @@ function _render(container) {
           </div>
           <div style="display:flex;align-items:center;gap:4px">
             <input class="settings-input" type="number" id="s-reserve-rate"
-              value="${((settings.reserveRate ?? 0.40) * 100).toFixed(0)}" min="0" max="100" step="1">
+              value="${((settings.reserveRate ?? 0.4) * 100).toFixed(0)}" min="0" max="100" step="1">
             <span style="color:var(--text-muted);font-size:0.875rem">%</span>
           </div>
         </div>
@@ -272,15 +272,15 @@ function _attachListeners(container) {
 
   function saveNumerics() {
     const primaryIncome = parseFloat(container.querySelector('#s-primary-income')?.value);
-    const manualRate    = parseFloat(container.querySelector('#s-manual-rate')?.value) / 100;
-    const reserveRate   = parseFloat(container.querySelector('#s-reserve-rate')?.value) / 100;
-    const kmRate        = parseFloat(container.querySelector('#s-km-rate')?.value);
-    const currSym       = container.querySelector('#s-currency-symbol')?.value?.trim() || '€';
+    const manualRate = parseFloat(container.querySelector('#s-manual-rate')?.value) / 100;
+    const reserveRate = parseFloat(container.querySelector('#s-reserve-rate')?.value) / 100;
+    const kmRate = parseFloat(container.querySelector('#s-km-rate')?.value);
+    const currSym = container.querySelector('#s-currency-symbol')?.value?.trim() || '€';
 
     const patch = {};
     if (!isNaN(primaryIncome) && primaryIncome >= 0) patch.primaryIncomeGross = primaryIncome;
-    if (!isNaN(manualRate))   patch.manualTaxRate  = Math.max(0, Math.min(1, manualRate));
-    if (!isNaN(reserveRate))  patch.reserveRate    = Math.max(0, Math.min(1, reserveRate));
+    if (!isNaN(manualRate)) patch.manualTaxRate = Math.max(0, Math.min(1, manualRate));
+    if (!isNaN(reserveRate)) patch.reserveRate = Math.max(0, Math.min(1, reserveRate));
     if (!isNaN(kmRate) && kmRate >= 0) patch.kmRate = kmRate;
     patch.currencySymbol = currSym;
 
@@ -291,17 +291,31 @@ function _attachListeners(container) {
     // Nur den Grenzsteuersatz-Wert im DOM aktualisieren (kein vollständiger Rebuild)
     const marginalEl = container.querySelector('#s-marginal-display');
     if (marginalEl) {
-      marginalEl.textContent = formatPercent(marginalTaxRate(store.settings.primaryIncomeGross ?? 46000));
+      marginalEl.textContent = formatPercent(
+        marginalTaxRate(store.settings.primaryIncomeGross ?? 46000)
+      );
     }
   }
 
   // Speichern auf blur (Fokus verlassen) oder Enter
-  const numericIds = ['#s-primary-income','#s-manual-rate','#s-reserve-rate','#s-km-rate','#s-currency-symbol'];
-  numericIds.forEach(sel => {
+  const numericIds = [
+    '#s-primary-income',
+    '#s-manual-rate',
+    '#s-reserve-rate',
+    '#s-km-rate',
+    '#s-currency-symbol',
+  ];
+  numericIds.forEach((sel) => {
     const el = container.querySelector(sel);
     if (!el) return;
-    el.addEventListener('blur',  saveNumerics);
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveNumerics(); el.blur(); } });
+    el.addEventListener('blur', saveNumerics);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        saveNumerics();
+        el.blur();
+      }
+    });
   });
 
   // Auto-Tax Toggle
@@ -312,13 +326,13 @@ function _attachListeners(container) {
   });
 
   // Theme Toggle
-  container.querySelectorAll('[data-theme]').forEach(btn => {
+  container.querySelectorAll('[data-theme]').forEach((btn) => {
     btn.addEventListener('click', () => {
       store.updateSettings({ theme: btn.dataset.theme });
       // Nur Buttons aktualisieren, nicht die ganze Seite
-      container.querySelectorAll('[data-theme]').forEach(b =>
-        b.classList.toggle('active', b.dataset.theme === btn.dataset.theme)
-      );
+      container
+        .querySelectorAll('[data-theme]')
+        .forEach((b) => b.classList.toggle('active', b.dataset.theme === btn.dataset.theme));
     });
   });
 
@@ -373,9 +387,12 @@ function _attachListeners(container) {
   // ---------------------------------------------------------------
 
   container.querySelector('#s-clear-cache')?.addEventListener('click', async () => {
-    if (!('caches' in window)) { showToast('Cache API nicht verfügbar', 'error'); return; }
+    if (!('caches' in window)) {
+      showToast('Cache API nicht verfügbar', 'error');
+      return;
+    }
     const keys = await caches.keys();
-    await Promise.all(keys.map(k => caches.delete(k)));
+    await Promise.all(keys.map((k) => caches.delete(k)));
     showToast('App-Cache geleert – bitte Seite neu laden', 'info');
   });
 
@@ -387,18 +404,21 @@ function _attachListeners(container) {
   });
 }
 
-
 function _storageSize() {
   try {
     const data = localStorage.getItem('nebeneinkuenfte_v1') ?? '';
     return (new Blob([data]).size / 1024).toFixed(1);
-  } catch { return '–'; }
+  } catch {
+    return '–';
+  }
 }
 
 // Liest die E-Mail aus der gecachten Supabase-Session (synchron, kein await)
 function _getCachedEmail() {
   try {
-    const key = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    const key = Object.keys(localStorage).find(
+      (k) => k.startsWith('sb-') && k.endsWith('-auth-token')
+    );
     if (key) {
       const session = JSON.parse(localStorage.getItem(key));
       return session?.user?.email ?? null;

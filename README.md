@@ -78,4 +78,5 @@ Dann im Browser: `http://localhost:8080`
 ```
 
 ---
-*Keine Steuerberatung. Alle Berechnungen sind Richtwerte.*
+
+_Keine Steuerberatung. Alle Berechnungen sind Richtwerte._

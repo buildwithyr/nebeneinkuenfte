@@ -7,7 +7,6 @@ import { store } from './store.js';
 import { formatDate } from './calculations.js';
 
 export const exportService = {
-
   /** Vollständiger JSON-Export */
   exportJSON() {
     const data = store.getRawData();
@@ -42,10 +41,10 @@ export const exportService = {
   exportCSV(year) {
     const { assignments, clients, settings } = store;
     const all = year
-      ? assignments.filter(a => new Date(a.date).getFullYear() === Number(year))
+      ? assignments.filter((a) => new Date(a.date).getFullYear() === Number(year))
       : assignments;
 
-    const clientMap = Object.fromEntries(clients.map(c => [c.id, c.name]));
+    const clientMap = Object.fromEntries(clients.map((c) => [c.id, c.name]));
     const kmRate = settings.kmRate ?? 0.42;
 
     const headers = [
@@ -65,7 +64,7 @@ export const exportService = {
     const rows = all
       .slice()
       .sort((a, b) => a.date.localeCompare(b.date))
-      .map(a => {
+      .map((a) => {
         const kmMoney = a.kmBillable ? (a.km ?? 0) * kmRate : 0;
         return [
           formatDate(a.date),
@@ -79,10 +78,12 @@ export const exportService = {
           formatDate(a.paidDate),
           a.type ?? 'mystery_shopping',
           (a.note ?? '').replace(/"/g, '""'),
-        ].map(v => `"${v}"`).join(';');
+        ]
+          .map((v) => `"${v}"`)
+          .join(';');
       });
 
-    const csv = [headers.map(h => `"${h}"`).join(';'), ...rows].join('\r\n');
+    const csv = [headers.map((h) => `"${h}"`).join(';'), ...rows].join('\r\n');
     const bom = '﻿'; // UTF-8 BOM für Excel-Kompatibilität
     const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
     const suffix = year ? `-${year}` : '';
@@ -96,6 +97,9 @@ export const exportService = {
     a.download = filename;
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 1000);
   },
 };

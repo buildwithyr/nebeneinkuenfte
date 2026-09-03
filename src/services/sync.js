@@ -19,7 +19,6 @@ const GIST_API = 'https://api.github.com/gists';
 const FILENAME = 'nebeneinkuenfte-data.json';
 
 export const syncService = {
-
   get isConfigured() {
     const { gistToken, gistId } = store.settings;
     return !!(gistToken && gistId);
@@ -92,12 +91,17 @@ export const syncService = {
     // DEBUG – Token-Diagnose (kein Inhalt, nur Metadaten)
     const tokenFromLS = localStorage.getItem('nebeneinkuenfte_v1');
     let tokenInLS = '(parse error)';
-    try { tokenInLS = JSON.parse(tokenFromLS)?.settings?.gistToken ?? '(leer)'; } catch {}
+    try {
+      tokenInLS = JSON.parse(tokenFromLS)?.settings?.gistToken ?? '(leer)';
+    } catch {}
     console.group('[Sync DEBUG] pull() Token-Diagnose');
     console.log('store.settings.gistToken Länge:', gistToken?.length ?? 0);
     console.log('token aus localStorage Länge:', tokenInLS?.length ?? 0);
     console.log('Token stimmen überein:', gistToken === tokenInLS);
-    console.log('Authorization Header (maskiert):', `Bearer ${gistToken?.slice(0,6)}…${gistToken?.slice(-4)}`);
+    console.log(
+      'Authorization Header (maskiert):',
+      `Bearer ${gistToken?.slice(0, 6)}…${gistToken?.slice(-4)}`
+    );
     console.log('Gist-ID:', gistId);
     console.groupEnd();
 
@@ -114,12 +118,18 @@ export const syncService = {
 
     if (!resp.ok) {
       let err = {};
-      try { err = JSON.parse(bodyText); } catch {}
+      try {
+        err = JSON.parse(bodyText);
+      } catch {}
       throw new Error(err.message ?? `GitHub API Fehler: ${resp.status}`);
     }
 
     let gist;
-    try { gist = JSON.parse(bodyText); } catch { throw new Error('Ungültige JSON-Antwort von GitHub'); }
+    try {
+      gist = JSON.parse(bodyText);
+    } catch {
+      throw new Error('Ungültige JSON-Antwort von GitHub');
+    }
     const file = gist.files?.[FILENAME];
     if (!file) throw new Error(`Datei "${FILENAME}" nicht im Gist gefunden.`);
 
@@ -141,7 +151,7 @@ export const syncService = {
     const local = store.getRawData();
     const remote = await this.pull();
 
-    const localTime  = new Date(local.meta?.lastModified ?? 0).getTime();
+    const localTime = new Date(local.meta?.lastModified ?? 0).getTime();
     const remoteTime = new Date(remote.meta?.lastModified ?? 0).getTime();
 
     if (remoteTime > localTime) {
@@ -161,8 +171,8 @@ export const syncService = {
 
   _headers(token) {
     return {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/vnd.github+json',
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
       'Content-Type': 'application/json',
     };
@@ -170,7 +180,9 @@ export const syncService = {
 
   _assertConfigured() {
     if (!this.isConfigured) {
-      throw new Error('GitHub Sync nicht konfiguriert. Bitte Token und Gist-ID in den Einstellungen eingeben.');
+      throw new Error(
+        'GitHub Sync nicht konfiguriert. Bitte Token und Gist-ID in den Einstellungen eingeben.'
+      );
     }
   },
 };
